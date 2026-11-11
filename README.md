@@ -26,13 +26,30 @@ only**, while it is in front.
 - **View-only by default.** Guided input lands only in your app's own windows, and your customer
   can pause it.
 
+Not in a desktop app? See the [web SDK](https://gaiadesk.net/docs/web-in-app-support), the
+[website widget](https://gaiadesk.net/docs/website-widget) or
+[Electron](https://gaiadesk.net/docs/electron-in-app-support).
+
 ## Install
 
 ```sh
-cargo add tauri-plugin-gaiadesk-support                    # in src-tauri/
-cargo add --build gaiadesk-embed-fetch                     # in src-tauri/: fetches the library at build time
-npm install @gaiadesk/tauri-plugin-support                 # your frontend
+cargo add tauri-plugin-gaiadesk-support@0.2                # in src-tauri/
+cargo add --build gaiadesk-embed-fetch@0.2                 # in src-tauri/: fetches the library at build time
+npm install @gaiadesk/tauri-plugin-support@0.2             # your frontend
 ```
+
+### Versions that go together
+
+| Part | Version |
+|---|---|
+| `tauri-plugin-gaiadesk-support` (crates.io) | 0.2.0 |
+| `gaiadesk-embed-fetch` (crates.io, build helper) | 0.2.0 |
+| `libgaiadesk_embed` (the native library it fetches) | 0.2.0 |
+| `@gaiadesk/tauri-plugin-support` (npm) | 0.2.0 |
+| Tauri | 2.x (the crate needs `tauri` 2.11 or later) |
+
+The plugin has its own 0.x version line, which follows the library's; it is not Tauri's 2.x. Keep
+all four GaiaDesk parts on the same version.
 
 ## Quick start
 
@@ -49,7 +66,13 @@ fn main() {
 }
 ```
 
-Then tell Tauri to ship it, one file per platform (Tauri merges these into `tauri.conf.json`):
+Then tell Tauri to ship it, one file per platform. Tauri merges `tauri.<os>.conf.json` over
+`tauri.conf.json` as a [JSON Merge Patch (RFC 7396)](https://datatracker.ietf.org/doc/html/rfc7396):
+**objects merge key by key, lists are replaced whole**. So keep `bundle.resources` a *map*
+(`"source": "target"`) in `tauri.conf.json` too: the platform file's entries are then added to yours.
+A resources *list* in `tauri.conf.json` would be replaced by the platform file's map, and its
+entries lost on that platform. Likewise, if you already list `bundle.macOS.frameworks`, repeat them
+in `tauri.macos.conf.json`. The platform files hold only the GaiaDesk entries:
 
 `src-tauri/tauri.macos.conf.json`
 
@@ -86,6 +109,13 @@ Then tell Tauri to ship it, one file per platform (Tauri merges these into `taur
     }
   }
 }
+```
+
+and your own resources stay in `tauri.conf.json`, as a map; on Windows the bundle then gets
+`icons/logo.png`, `gaiadesk/gaiadesk_embed.dll` and `gaiadesk/LICENSE-BINARY`:
+
+```json
+{ "bundle": { "resources": { "icons/logo.png": "icons/logo.png" } } }
 ```
 
 On macOS the library goes in `Contents/Frameworks`, where Tauri signs it with your app (a dylib in
@@ -136,7 +166,8 @@ page (API keys → *Publishable*) and register the origin **`app://<your identif
 for `"identifier": "com.acme.desk"`, that is `app://com.acme.desk`. The plugin's Rust side sends
 `POST https://api.gaiadesk.net/v1/support/sessions` with that `Origin`. A publishable key can only
 create support sessions, at most an hour long, and the customer details are your app's word
-(`customer_verified: false` in the console).
+(`customer_verified: false` in the console). The request comes from Rust, not from your webview,
+so its `Origin` is `app://<identifier>` whatever the webview has loaded.
 
 **An embed token from your backend** (the session is created with your secret key, scope
 `support`, and you choose its mode and verified customer details):
@@ -144,9 +175,39 @@ create support sessions, at most an hour long, and the customer details are your
 ```sh
 curl -s -X POST https://api.gaiadesk.net/v1/support/sessions \
   -H "Authorization: Bearer $GAIADESK_API_KEY" -H "Content-Type: application/json" \
-  -d '{"mode": "cobrowse", "customer": {"name": "Ada", "plan": "pro"}}'
-# → {"id": "ss_…", "join_code": "123456789", "embed_token": "gdemb_…", …}
+  -d '{"mode": "cobrowse", "customer": {"name": "Ada", "plan": "pro"}, "origin": "app://com.acme.desk"}'
 ```
+
+`origin` is optional; if you pin one, make it `app://<identifier>`. The library connects without
+an `Origin`, which only an `app://` pin admits (an `https://` pin is refused, `origin_not_allowed`).
+The answer, `201 Created`:
+
+```json
+{
+  "id": "ss_0123456789abcdef",
+  "state": "waiting",
+  "mode": "cobrowse",
+  "customer": { "name": "Ada", "plan": "pro" },
+  "customer_present": false,
+  "customer_verified": true,
+  "join_code": "123456789",
+  "join_url": "https://gaiadesk.net/app/support.html#session=ss_0123456789abcdef",
+  "desk_id": null,
+  "origin": "app://com.acme.desk",
+  "owner": "you@acme.com",
+  "created_at": 1767225600,
+  "expires_at": 1767229200,
+  "joined_at": null,
+  "joined_by": null,
+  "ended_at": null,
+  "end_reason": null,
+  "embed_token": "gdemb_…"
+}
+```
+
+`created_at`, `expires_at`, `joined_at` and `ended_at` are Unix seconds (numbers); `expires_at` is
+`created_at` + `expires_in` (default 3600). `embed_token` (`gdemb_` + 64 hex) is shown only here.
+Every field: [support API reference](https://gaiadesk.net/docs/ref-support).
 
 ```ts
 const { embedToken } = await myBackend.post("/support-session");
@@ -154,6 +215,32 @@ await startHelp({ embedToken, guided: true });
 ```
 
 Never ship the secret key in the app: the embed token is all it needs.
+
+### Remote-URL apps
+
+If your window loads your site (`"url": "https://yourapp.com"`) instead of bundled files:
+
+- The publishable key still needs **`app://<identifier>`**: the plugin creates the session from
+  Rust with that `Origin`, not from your page. The key may also list `https://yourapp.com` if the
+  same key serves the web SDK in browsers; the plugin does not need it.
+- Bundle `@gaiadesk/tauri-plugin-support` into your site's own JavaScript.
+- Grant the permission to the remote URL with the capability's `remote.urls`
+  ([URLPattern](https://urlpattern.spec.whatwg.org/) strings: `https://yourapp.com` matches every
+  path on that host, `https://*.yourapp.com` its subdomains). Any page there can then start and
+  stop a session in that window, so list only origins you control.
+
+`src-tauri/capabilities/remote-help.json`:
+
+```json
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "remote-help",
+  "description": "Lets yourapp.com, loaded in the main window, start GaiaDesk support.",
+  "windows": ["main"],
+  "remote": { "urls": ["https://yourapp.com"] },
+  "permissions": ["gaiadesk-support:default"]
+}
+```
 
 ## Options
 
@@ -187,7 +274,13 @@ Plugin config (`plugins."gaiadesk-support"`, or `Builder` in Rust): `publishable
 |---|---|
 | `name` | "Sharing with **Acme**" on the dialog and the indicator. Default: the config's `company`, then your app's product name. |
 | `color` | Accent colour, `#rrggbb` or `#rgb`. |
-| `logo` | A PNG, at most 256 KiB: a path (relative ones are in your app's resources, so list it in `bundle.resources`), an `https://` URL, or a `data:image/png;base64,` URL. |
+| `logo` | A PNG, at most 256 KiB (262,144 bytes): a path, an `https://` URL, or a `data:image/png;base64,` URL. |
+
+A relative logo path is read from your app's bundled resources directory (Tauri's
+`resource_dir()`: `Contents/Resources` in a macOS app), so list it in `bundle.resources` with that
+target path (`"logo": "icons/logo.png"` needs `"icons/logo.png": "icons/logo.png"`). An absolute
+path is read as is. A logo that cannot be read or downloaded, is not a PNG, or is over 256 KiB
+makes `startHelp` reject with `bad_logo`, before the consent dialog.
 
 Colour and logo need `libgaiadesk_embed` 0.2 or later; with 0.1.0 the plugin shows the plain dialog
 and indicator with your name, and drops them silently.
@@ -252,15 +345,34 @@ Other targets (Windows on Arm, Linux arm64) build, and `startHelp` rejects with 
 
 ## How the library is found
 
-At run time, the first that exists of: `GAIADESK_EMBED_LIBRARY`, the config's `libraryPath`,
-`Contents/Frameworks/` (macOS), `<resources>/gaiadesk/`, and `gaiadesk/` beside the executable
-(where `gaiadesk_embed_fetch::fetch` also copies it, so `tauri dev` works).
+At run time, the first that exists of: `GAIADESK_EMBED_LIBRARY` (the full path of the library
+file), the config's `libraryPath`, `Contents/Frameworks/` (macOS), `<resources>/gaiadesk/`, and
+`gaiadesk/` beside the executable (where `gaiadesk_embed_fetch::fetch` also copies it, so
+`tauri dev` works).
 
-At build time `fetch` downloads `gaiadesk_embed-<platform>` from the
-[gaiadesk-embed-cpp release](https://github.com/Gaia-Desk/gaiadesk-embed-cpp/releases/tag/v0.2.0)
-and refuses it unless its SHA-256 matches the hash pinned in `fetch/src/lib.rs`. Offline or from a
-mirror: `GAIADESK_EMBED_ROOT=<unpacked archive>` or `GAIADESK_EMBED_BASE_URL=<url>` (still checked).
-It needs `curl` and `tar`, which macOS, Linux and Windows 10+ have.
+At build time `fetch`:
+
+- downloads `gaiadesk_embed-macos-universal.tar.gz`, `gaiadesk_embed-win-x64.zip` or
+  `gaiadesk_embed-linux-x64.tar.gz` from the
+  [gaiadesk-embed-cpp v0.2.0 release](https://github.com/Gaia-Desk/gaiadesk-embed-cpp/releases/tag/v0.2.0),
+  with `curl` and `tar` (macOS, Linux and Windows 10+ have both);
+- refuses it unless its SHA-256 matches the hash pinned in `PINNED` (`fetch/src/lib.rs`): nothing is
+  unpacked and the build fails;
+- places the library and `LICENSE-BINARY` in `src-tauri/gaiadesk/` and in `target/<profile>/gaiadesk/`;
+- caches in `src-tauri/gaiadesk/`: it stamps the pinned hash in `.sha256` there and does not
+  download again while the library and stamp are present (per project; `cargo clean` leaves it;
+  delete the folder to fetch again);
+- on a target with no prebuilt library, warns and goes on (`startHelp` rejects `library_missing`).
+
+### Offline builds and mirrors
+
+| Variable | |
+|---|---|
+| `GAIADESK_EMBED_ROOT` | An **unpacked** release archive (`lib/libgaiadesk_embed.dylib`, `bin/gaiadesk_embed.dll` or `lib/libgaiadesk_embed.so`, plus `LICENSE-BINARY`). Nothing is downloaded; the files are copied as they are and **not** hash-checked, so unpack an archive you verified. |
+| `GAIADESK_EMBED_BASE_URL` | Where the archives are instead of the GitHub release (your mirror, or `file://`). Same file names; still checked against the pinned hashes. |
+
+Changing either reruns the build script, but a `src-tauri/gaiadesk/` already holding the pinned
+version from an earlier download is used as it is: delete it for the variable to take effect.
 
 ## Example
 
