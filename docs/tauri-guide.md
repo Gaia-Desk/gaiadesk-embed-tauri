@@ -65,19 +65,21 @@ On macOS the library goes in `Contents/Frameworks`, so Tauri signs and notarizes
 
 On your GaiaDesk account page, open **API keys**, create a **Publishable** key, and register your app's origin: `app://` followed by your Tauri `identifier`, in lowercase — for `com.acme.desk`, `app://com.acme.desk`.
 
-A publishable key can do one thing: create support sessions, at most an hour long, for that app. It is safe to ship inside your app. Sessions created with it show the customer's details as your app's word (unverified) in the console.
+A publishable key (`pk_live_…`, or `pk_test_…` in test mode) can do one thing: create support sessions, at most an hour long, for that app. It is safe to ship inside your app. A secret key (`sk_…`) is not: the plugin fails your build if one is in its config, and refuses to start (`secret_key_in_app`) if one reaches it at run time. Sessions created with it show the customer's details as your app's word (unverified) in the console.
 
 Put it in `tauri.conf.json`, with your name and look:
 
 ```
 "plugins": {
   "gaiadesk-support": {
-    "publishableKey": "ak_…",
+    "publishableKey": "pk_live_…",
     "company": "Acme",
-    "branding": { "color": "#0f766e", "logo": "icons/logo.png" }
+    "branding": { "color": "#0f766e", "logo": "$appIcon" }
   }
 }
 ```
+
+`logo` is a PNG: `"$appIcon"` (your app's own icon), a path in your bundled resources (`"icons/logo.png"`, listed in `bundle.resources`), an `https://` URL or a data URL. A big one is downscaled; one that cannot be used only drops the logo (a `warning` event) — it never stops a session.
 
 And allow the plugin in your window's capability (`src-tauri/capabilities/default.json`): add `"gaiadesk-support:default"` to `permissions`.
 
@@ -91,6 +93,17 @@ on("started", ({ code }) => showStatus(`Your support code is ${code}`));
 ```
 
 That is the whole integration. The button asks, creates the session, starts sharing, and becomes "Stop sharing" while the session lasts.
+
+To hide the button in builds that lack the plugin (an older version of your app), `await getInfo()` answers `{ available: false }` there instead of throwing.
+
+## After the session
+
+- **Rating.** `ended` says `canRate`; ask your customer, then `rate(5, "Thanks!")`. It shows on the session in the console.
+- **Logs.** `attachDiagnostics({ files: [logPath] })` before (or during) a session: your customer is asked "Also share app logs with Acme support?" after they agree to share, and only a yes uploads them. Your team downloads them from the session's card in the console.
+
+## Asking a customer to share
+
+Your agents can ask a signed-in customer's app for a session ("Ask to share" in the console). Your backend mints a listen token for that user (`POST /v1/support/listeners`, secret key); the app calls `listen({ listenToken })`, shows its own prompt on each `request` event, and answers with `acceptRequest(id)` (the consent dialog still shows) or `declineRequest(id)`.
 
 ## Sessions from your own backend
 
@@ -115,12 +128,12 @@ By default your team can only look. To let them click and type, create the sessi
 ## Keeping things private
 
 - **Your app's window only.** Other apps, notifications and the desktop are never captured, unless you choose `capture: "screen"`.
-- **Masks.** Mark anything sensitive — card numbers, balances, passwords — with `data-gaiadesk-mask`. It is painted black before a frame is encoded, from the very first frame, and follows the element as it moves. If the window cannot be located, the whole picture is blacked out.
+- **Masks.** Password, card and one-time-code fields are masked without you doing anything (`data-gaiadesk-unmask` shows one anyway). Mark anything else sensitive — balances, account numbers — with `data-gaiadesk-mask`; `showMaskOverlay(true)` outlines what is masked while you develop. It is painted black before a frame is encoded, from the very first frame, and follows the element as it moves. If the window cannot be located, the whole picture is blacked out.
 - **Consent every time.** The library refuses to start without it; there is no setting that skips the dialog or hides the indicator.
 
 ## What each platform supports
 
-- **macOS 12.3 or later** (Apple silicon and Intel): macOS asks your customer for **Screen Recording** permission the first time. Guided input needs no Accessibility permission.
+- **macOS 12.3 or later** (Apple silicon and Intel): your app needs **Screen Recording** permission. `startHelp` checks it before creating any session and rejects with `permission_required`; `requestScreenPermission()` shows macOS's prompt (first time), `openScreenPermissionSettings()` opens the switch, and the app must be relaunched after a grant. Guided input needs no Accessibility permission.
 - **Windows 10 and 11** (x64): nothing to install; the library needs the Visual C++ runtime most apps already ship.
 - **Linux** (x86_64, X11): view-only. There is no native consent dialog, so the plugin asks with your app's own (or the browser-style confirm by default).
 

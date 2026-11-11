@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-decline-request"
+description = "Enables the decline_request command without any pre-configured scope."
+commands.allow = ["decline_request"]
+
+[[permission]]
+identifier = "deny-decline-request"
+description = "Denies the decline_request command without any pre-configured scope."
+commands.deny = ["decline_request"]

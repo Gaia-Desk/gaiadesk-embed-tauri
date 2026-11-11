@@ -22,6 +22,9 @@ pub struct Status {
     /// Guided input is paused (by the customer or the app).
     pub paused: bool,
     pub end_reason: Option<String>,
+    /// The company's typical wait for an agent, seconds, when the server has
+    /// an estimate (from the session's create or accept).
+    pub estimated_wait_seconds: Option<u64>,
 }
 
 impl Status {
@@ -57,9 +60,12 @@ pub fn map(json: &str, status: &mut Status) -> Option<(&'static str, Value)> {
             status.code = s("code");
             status.session_id = s("session_id");
             status.mode = s("mode");
+            if let Some(w) = e.get("estimated_wait_seconds").and_then(Value::as_u64) {
+                status.estimated_wait_seconds = Some(w);
+            }
             Some((
                 "started",
-                json!({ "code": status.code, "sessionId": status.session_id, "mode": status.mode, "expiresAt": e.get("expires_at").and_then(Value::as_f64) }),
+                json!({ "code": status.code, "sessionId": status.session_id, "mode": status.mode, "expiresAt": e.get("expires_at").and_then(Value::as_f64), "estimatedWaitSeconds": status.estimated_wait_seconds }),
             ))
         }
         "joined" => {
@@ -103,24 +109,32 @@ mod tests {
     use super::*;
 
     fn run(events: &[&str]) -> (Vec<(&'static str, Value)>, Status) {
-        let mut st = Status::idle();
+        run_from(Status::idle(), events)
+    }
+
+    fn run_from(mut st: Status, events: &[&str]) -> (Vec<(&'static str, Value)>, Status) {
         let out = events.iter().filter_map(|e| map(e, &mut st)).collect();
         (out, st)
     }
 
     #[test]
     fn a_whole_session() {
-        let (out, st) = run(&[
-            r#"{"type":"state","state":"starting"}"#,
-            r#"{"type":"code","code":"123456789","session_id":"ss_1","mode":"cobrowse","expires_at":1700000000}"#,
-            r#"{"type":"state","state":"waiting"}"#,
-            r#"{"type":"joined","agent":"ana@acme.com"}"#,
-            r#"{"type":"control","allowed":false}"#,
-            r#"{"type":"action","action":"click","applied":false,"reason":"control_paused"}"#,
-            r#"{"type":"error","code":"capture_failed","message":"no window"}"#,
-            r#"{"type":"state","state":"ended"}"#,
-            r#"{"type":"ended","reason":"stopped"}"#,
-        ]);
+        let mut st = Status::idle();
+        st.estimated_wait_seconds = Some(45);
+        let (out, st) = run_from(
+            st,
+            &[
+                r#"{"type":"state","state":"starting"}"#,
+                r#"{"type":"code","code":"123456789","session_id":"ss_1","mode":"cobrowse","expires_at":1700000000}"#,
+                r#"{"type":"state","state":"waiting"}"#,
+                r#"{"type":"joined","agent":"ana@acme.com"}"#,
+                r#"{"type":"control","allowed":false}"#,
+                r#"{"type":"action","action":"click","applied":false,"reason":"control_paused"}"#,
+                r#"{"type":"error","code":"capture_failed","message":"no window"}"#,
+                r#"{"type":"state","state":"ended"}"#,
+                r#"{"type":"ended","reason":"stopped"}"#,
+            ],
+        );
         let names: Vec<_> = out.iter().map(|(n, _)| *n).collect();
         assert_eq!(
             names,
@@ -131,7 +145,7 @@ mod tests {
         );
         assert_eq!(
             out[1].1,
-            json!({ "code": "123456789", "sessionId": "ss_1", "mode": "cobrowse", "expiresAt": 1700000000.0 })
+            json!({ "code": "123456789", "sessionId": "ss_1", "mode": "cobrowse", "expiresAt": 1700000000.0, "estimatedWaitSeconds": 45 })
         );
         assert_eq!(out[3].1, json!({ "agent": "ana@acme.com" }));
         assert_eq!(out[4].1, json!({ "paused": true }));
@@ -148,6 +162,9 @@ mod tests {
         assert_eq!(st.code.as_deref(), Some("123456789"));
         assert_eq!(st.end_reason.as_deref(), Some("stopped"));
         assert!(st.agent.is_none() && st.paused && !st.active());
+        // A library that sends its own estimate wins.
+        let (out, _) = run(&[r#"{"type":"code","code":"1","estimated_wait_seconds":30}"#]);
+        assert_eq!(out[0].1["estimatedWaitSeconds"], json!(30));
     }
 
     #[test]

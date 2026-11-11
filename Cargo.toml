@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-gaiadesk-support"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.77.2"
 license = "MIT"
@@ -21,13 +21,16 @@ libloading = "0.8"
 base64 = "0.22"
 # Blocking HTTP for the publishable-key flow and logo URLs: rustls (ring) with the OS's own
 # certificate verifier, so no bundled root store.
+# Logo downscaling and the app icon as PNG (already in Tauri's tree, via muda).
+png = "0.18"
 ureq = { version = "3", default-features = false, features = ["rustls-no-provider", "_ring", "platform-verifier"] }
 
 [dev-dependencies]
-gaiadesk-embed-fetch = { path = "fetch", version = "0.2.0" }
+gaiadesk-embed-fetch = { path = "fetch", version = "0.3.0" }
 
 [build-dependencies]
 tauri-plugin = { version = "2.7", features = ["build"] }
+serde_json = "1"
 
 [workspace]
 members = [".", "fetch", "examples/tauri-app/src-tauri"]

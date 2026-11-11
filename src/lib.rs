@@ -15,6 +15,7 @@
 //! `@gaiadesk/tauri-plugin-support`.
 
 use std::path::PathBuf;
+use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex};
 
 use serde::Deserialize;
@@ -26,8 +27,12 @@ mod commands;
 pub mod error;
 mod events;
 pub mod ffi;
+mod followup;
 mod http;
+pub mod keys;
 pub mod options;
+mod permission;
+mod requests;
 
 pub use error::Error;
 pub use events::Status;
@@ -37,8 +42,10 @@ pub use options::{Branding, Capture, HelpOptions, Mode};
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Config {
-    /// `ak_…`, a publishable key registered for `app://<your identifier>`:
-    /// `startHelp()` then creates the session itself.
+    /// `pk_live_…` / `pk_test_…` (or an older `ak_…`), a publishable key
+    /// registered for `app://<your identifier>`: `startHelp()` then creates
+    /// the session itself. A secret key (`sk_…`) fails the build and is
+    /// refused at run time (`secret_key_in_app`).
     pub publishable_key: Option<String>,
     /// Default company name (else the app's product name).
     pub company: Option<String>,
@@ -94,7 +101,18 @@ impl Builder {
                 commands::stop,
                 commands::set_paused,
                 commands::set_masks,
-                commands::status
+                commands::status,
+                commands::get_info,
+                commands::screen_permission,
+                commands::request_screen_permission,
+                commands::open_screen_permission_settings,
+                followup::rate,
+                followup::attach_diagnostics,
+                followup::send_diagnostics,
+                followup::discard_diagnostics,
+                requests::listen,
+                requests::stop_listening,
+                requests::decline_request
             ])
             .setup(move |app, api| {
                 let file = api.config().clone().unwrap_or_default();
@@ -108,13 +126,18 @@ impl Builder {
                 app.manage(Support {
                     config,
                     session: Arc::new(Session::default()),
+                    creds: Mutex::new(None),
+                    diagnostics: Mutex::new(None),
+                    listen_token: Mutex::new(None),
+                    listen_gen: AtomicU64::new(0),
                 });
                 Ok(())
             })
             .on_event(|app, e| {
                 if let RunEvent::Exit = e {
-                    // Quitting ends the session (the library's `app_stopped`).
+                    // Quitting ends the session (the library's `app_stopped`) and listening.
                     commands::stop_now(app);
+                    requests::stop_now(app);
                 }
             })
             .build()
@@ -150,6 +173,14 @@ impl Default for Session {
 pub(crate) struct Support {
     pub(crate) config: Config,
     pub(crate) session: Arc<Session>,
+    /// The last session's embed token, for its rating and attachments.
+    pub(crate) creds: Mutex<Option<followup::Creds>>,
+    /// Diagnostics the app attached, waiting for the customer's yes.
+    pub(crate) diagnostics: Mutex<Option<followup::Diagnostics>>,
+    /// The listen token while listening for session requests.
+    pub(crate) listen_token: Mutex<Option<String>>,
+    /// Bumped by every listen/stop: an older listener thread sees it and quits.
+    pub(crate) listen_gen: AtomicU64,
 }
 
 impl Support {
@@ -174,6 +205,11 @@ impl Support {
             exe_dir.as_deref(),
         );
         ffi::Lib::load_first(&c)
+    }
+
+    /// The API base (`https://api.gaiadesk.net/v1` or `<server>/v1`).
+    pub(crate) fn api(&self) -> String {
+        options::api_base(self.config.server.as_deref())
     }
 }
 

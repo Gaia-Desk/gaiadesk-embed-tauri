@@ -48,7 +48,8 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      - run: npm run build
+      - name: Build and test (masks, overlay, dialog, getInfo)
+        run: npm test
       - name: Package contents
         run: npm pack --dry-run
       - name: Example frontend (type-check and bundle)

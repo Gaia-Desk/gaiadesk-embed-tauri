@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-attach-diagnostics"
+description = "Enables the attach_diagnostics command without any pre-configured scope."
+commands.allow = ["attach_diagnostics"]
+
+[[permission]]
+identifier = "deny-attach-diagnostics"
+description = "Denies the attach_diagnostics command without any pre-configured scope."
+commands.deny = ["attach_diagnostics"]

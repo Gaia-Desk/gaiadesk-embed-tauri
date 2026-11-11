@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-discard-diagnostics"
+description = "Enables the discard_diagnostics command without any pre-configured scope."
+commands.allow = ["discard_diagnostics"]
+
+[[permission]]
+identifier = "deny-discard-diagnostics"
+description = "Denies the discard_diagnostics command without any pre-configured scope."
+commands.deny = ["discard_diagnostics"]

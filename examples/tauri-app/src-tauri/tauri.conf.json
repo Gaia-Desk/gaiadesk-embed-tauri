@@ -30,7 +30,7 @@
   },
   "plugins": {
     "gaiadesk-support": {
-      "publishableKey": "ak_your_publishable_key",
+      "publishableKey": "pk_live_your_publishable_key",
       "company": "Acme",
       "branding": {
         "color": "#0f766e",

@@ -1,5 +1,22 @@
 "$schema" = "schemas/schema.json"
 
 [default]
-description = "Lets the app's pages start, watch, pause, mask and stop a GaiaDesk support session: start-help, stop, set-paused, set-masks and status."
-permissions = ["allow-start-help", "allow-stop", "allow-set-paused", "allow-set-masks", "allow-status"]
+description = "Lets the app's pages start, watch, pause, mask and stop a GaiaDesk support session, check what the build supports and the macOS Screen Recording permission, rate a session, send diagnostics the customer agreed to, and listen for and decline session requests."
+permissions = [
+  "allow-start-help",
+  "allow-stop",
+  "allow-set-paused",
+  "allow-set-masks",
+  "allow-status",
+  "allow-get-info",
+  "allow-screen-permission",
+  "allow-request-screen-permission",
+  "allow-open-screen-permission-settings",
+  "allow-rate",
+  "allow-attach-diagnostics",
+  "allow-send-diagnostics",
+  "allow-discard-diagnostics",
+  "allow-listen",
+  "allow-stop-listening",
+  "allow-decline-request",
+]

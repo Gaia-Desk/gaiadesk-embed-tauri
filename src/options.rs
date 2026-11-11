@@ -60,7 +60,9 @@ pub struct Branding {
     /// `#rrggbb` (or `#rgb`).
     pub color: Option<String>,
     /// A PNG: a path (relative ones are in the app's resources), an
-    /// `https://` URL or a `data:image/png;base64,` URL. At most 256 KiB.
+    /// `https://` URL, a `data:image/png;base64,` URL, or `$appIcon` (the
+    /// app's window icon). Bigger than 256 KiB: downscaled. A logo that
+    /// cannot be used is a `warning` event, never a refusal.
     pub logo: Option<String>,
 }
 
@@ -75,6 +77,9 @@ pub struct HelpOptions {
     pub publishable_key: Option<String>,
     /// From your backend (`POST /v1/support/sessions`). Wins over a key.
     pub embed_token: Option<String>,
+    /// A session request (`sr_…`) heard by `listen`: accepted after the
+    /// customer agreed, and its session started. Wins over a key.
+    pub request_id: Option<String>,
     /// Who the customer is (publishable-key flow): flat, at most 16 fields.
     pub customer: Option<Map<String, Value>>,
     pub mode: Option<Mode>,
@@ -192,9 +197,58 @@ pub fn api_base(server: Option<&str>) -> String {
     }
 }
 
+/// What the app says about itself (`client` on a create or an accept): the
+/// OS, its version when known, the app's version and this plugin. Values the
+/// server would refuse (empty, over 64, not printable ASCII) are left out. Pure.
+pub fn client_info(os: &str, os_version: Option<&str>, app_version: &str) -> Value {
+    let fields = [
+        ("os", Some(os)),
+        ("os_version", os_version),
+        ("app_version", Some(app_version)),
+        ("sdk", Some("tauri-plugin-gaiadesk-support")),
+        ("sdk_version", Some(env!("CARGO_PKG_VERSION"))),
+    ];
+    let ok =
+        |v: &&str| !v.is_empty() && v.len() <= 64 && v.bytes().all(|b| (0x20..0x7f).contains(&b));
+    Value::Object(
+        fields
+            .into_iter()
+            .filter_map(|(k, v)| v.filter(ok).map(|v| (k.to_string(), Value::from(v))))
+            .collect(),
+    )
+}
+
+/// This OS's version, where it is cheap to read: macOS's SystemVersion.plist,
+/// Linux's os-release. `None` elsewhere.
+// shortcut: no Windows version (needs a registry or RtlGetVersion call); add one if agents ask.
+pub fn os_version() -> Option<String> {
+    let read = |p: &str| std::fs::read_to_string(p).ok();
+    match std::env::consts::OS {
+        "macos" => read("/System/Library/CoreServices/SystemVersion.plist")
+            .and_then(|t| plist_string(&t, "ProductVersion")),
+        "linux" => read("/etc/os-release").and_then(|t| os_release(&t, "VERSION_ID")),
+        _ => None,
+    }
+}
+
+/// `<key>k</key><string>v</string>` → v. Pure.
+fn plist_string(text: &str, key: &str) -> Option<String> {
+    let after = &text[text.find(&format!("<key>{key}</key>"))?..];
+    let start = after.find("<string>")? + "<string>".len();
+    let end = after[start..].find("</string>")?;
+    Some(after[start..start + end].trim().to_string())
+}
+
+/// `K="v"` (or `K=v`) → v. Pure.
+fn os_release(text: &str, key: &str) -> Option<String> {
+    text.lines()
+        .find_map(|l| l.strip_prefix(key)?.strip_prefix('='))
+        .map(|v| v.trim().trim_matches('"').to_string())
+}
+
 /// `POST /v1/support/sessions`'s body. Pure.
-pub fn session_body(o: &HelpOptions) -> String {
-    let mut b = json!({ "mode": o.mode.unwrap_or_default().as_str() });
+pub fn session_body(o: &HelpOptions, client: &Value) -> String {
+    let mut b = json!({ "mode": o.mode.unwrap_or_default().as_str(), "client": client });
     if let Some(c) = &o.customer {
         b["customer"] = Value::Object(c.clone());
     }
@@ -353,12 +407,48 @@ mod tests {
 
     #[test]
     fn session_body_has_mode_customer_and_expiry() {
-        let b: Value = serde_json::from_str(&session_body(&opts(json!({ "mode": "cobrowse", "customer": { "name": "Ada", "plan": "pro" }, "expiresIn": 900 })))).unwrap();
+        let client = json!({ "os": "macos" });
+        let b: Value = serde_json::from_str(&session_body(&opts(json!({ "mode": "cobrowse", "customer": { "name": "Ada", "plan": "pro" }, "expiresIn": 900 })), &client)).unwrap();
         assert_eq!(
             b,
-            json!({ "mode": "cobrowse", "customer": { "name": "Ada", "plan": "pro" }, "expires_in": 900 })
+            json!({ "mode": "cobrowse", "client": { "os": "macos" }, "customer": { "name": "Ada", "plan": "pro" }, "expires_in": 900 })
         );
-        assert_eq!(session_body(&HelpOptions::default()), r#"{"mode":"view"}"#);
+        assert_eq!(
+            session_body(&HelpOptions::default(), &client),
+            r#"{"client":{"os":"macos"},"mode":"view"}"#
+        );
+    }
+
+    #[test]
+    fn client_info_names_the_app_and_drops_what_the_server_refuses() {
+        let c = client_info("macos", Some("14.5"), "2.3.1");
+        assert_eq!(
+            c,
+            json!({ "os": "macos", "os_version": "14.5", "app_version": "2.3.1",
+                    "sdk": "tauri-plugin-gaiadesk-support", "sdk_version": env!("CARGO_PKG_VERSION") })
+        );
+        let c = client_info("linux", None, "");
+        assert!(c.get("os_version").is_none() && c.get("app_version").is_none());
+        assert!(client_info("x", Some(&"9".repeat(65)), "é")
+            .get("os_version")
+            .is_none());
+        assert!(client_info("x", None, "é").get("app_version").is_none());
+    }
+
+    #[test]
+    fn os_versions_are_read_from_the_system_files() {
+        let plist = "<dict>\n\t<key>ProductName</key>\n\t<string>macOS</string>\n\t<key>ProductVersion</key>\n\t<string>14.5</string>\n</dict>";
+        assert_eq!(
+            plist_string(plist, "ProductVersion").as_deref(),
+            Some("14.5")
+        );
+        assert_eq!(plist_string(plist, "Nope"), None);
+        let osr = "NAME=\"Ubuntu\"\nVERSION_ID=\"24.04\"\nVERSION=\"24.04 LTS\"";
+        assert_eq!(os_release(osr, "VERSION_ID").as_deref(), Some("24.04"));
+        assert_eq!(
+            os_release("VERSION_ID=12", "VERSION_ID").as_deref(),
+            Some("12")
+        );
     }
 
     #[test]

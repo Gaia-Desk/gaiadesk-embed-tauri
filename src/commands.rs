@@ -1,15 +1,21 @@
-//! The JS commands: start_help, stop, set_paused, set_masks, status.
+//! The JS commands: start_help, stop, set_paused, set_masks, status,
+//! get_info and the screen-permission ones.
 
 use std::ffi::{c_char, c_void, CStr};
 use std::sync::Arc;
+use std::time::Instant;
 
+use serde::Serialize;
+use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager, Runtime, WebviewWindow};
 
 use crate::error::{Error, Result};
 use crate::events::{self, Status};
 use crate::ffi::{GdEmbedCallbacks, GdRect, Lib};
+use crate::followup::{warn, Creds};
+use crate::http::Created;
 use crate::options::{self, Brand, CssRect, HelpOptions};
-use crate::{branding, http, lock, Handle, Session, Support};
+use crate::{branding, http, keys, lock, permission, requests, Handle, Session, Support};
 
 /// Ask, create the session if needed, start. Resolves once sharing has
 /// started (events follow); rejects with `{code, message}`.
@@ -22,7 +28,22 @@ pub(crate) async fn start_help<R: Runtime>(
     let o = options.unwrap_or_default();
     blocking(move || {
         let sup = app.state::<Support>();
+        let keys = [
+            o.publishable_key.as_deref(),
+            sup.config.publishable_key.as_deref(),
+        ];
+        if keys.into_iter().flatten().any(keys::is_secret_key) {
+            return Err(Error::new("secret_key_in_app", keys::SECRET_KEY_IN_APP));
+        }
         let lib = sup.lib(&app)?;
+        // Before any session exists: no agent ever joins one that cannot share.
+        if permission::screen() != "granted" {
+            let _ = app.emit(
+                &format!("{}permission_required", events::PREFIX),
+                json!({ "permission": "screen", "restartRequired": permission::RESTART_REQUIRED }),
+            );
+            return Err(permission::required());
+        }
         claim(&sup.session)?;
         let r = start_claimed(&app, &sup, lib, &window, &o);
         if r.is_err() {
@@ -56,8 +77,7 @@ fn start_claimed<R: Runtime>(
     window: &WebviewWindow<R>,
     o: &HelpOptions,
 ) -> Result<Status> {
-    let resource_dir = app.path().resource_dir().ok();
-    let brand = brand_of(app, sup, o, resource_dir.as_deref())?;
+    let brand = brand_of(app, sup, o)?;
     let masks = library_rects(window, &o.masks);
 
     if !o.consent_granted {
@@ -73,6 +93,12 @@ fn start_claimed<R: Runtime>(
             // Our options were refused: a bug to report, not the user's "no".
             let _ = app.emit(&format!("{}error", events::PREFIX), e);
         })?;
+        if answer == 0 {
+            if let Some(id) = &o.request_id {
+                // The agent hears the no at once rather than at the request's expiry.
+                let _ = requests::decline(app, id);
+            }
+        }
         match answer {
             1 => {}
             -1 => return Err(Error::new("no_native_dialog", "this platform has no native consent dialog: ask your user yourself, then pass consentGranted: true")),
@@ -81,33 +107,44 @@ fn start_claimed<R: Runtime>(
         }
     }
 
-    let token = match (
+    let client = client_info(app);
+    let created = match (
         &o.embed_token,
+        &o.request_id,
         o.publishable_key
             .as_ref()
             .or(sup.config.publishable_key.as_ref()),
     ) {
-        (Some(t), _) => t.clone(),
-        (None, Some(key)) => {
+        (Some(t), _, _) => Created {
+            token: t.clone(),
+            ..Created::default()
+        },
+        (None, Some(id), _) => requests::accept(app, id, &client)?,
+        (None, None, Some(key)) => {
             let origin = options::native_origin(&app.config().identifier);
-            http::create_session(
-                &options::api_base(sup.config.server.as_deref()),
-                key,
-                &origin,
-                &options::session_body(o),
-            )?
+            http::create_session(&sup.api(), key, &origin, &options::session_body(o, &client))?
         }
-        (None, None) => {
+        (None, None, None) => {
             return Err(Error::new(
                 "bad_options",
-                "give startHelp an embedToken, or set publishableKey in the plugin config",
+                "give startHelp an embedToken or a requestId, or set publishableKey in the plugin config",
             ))
         }
     };
 
-    lock(&sup.session.status).state = "starting".into();
+    {
+        let mut st = lock(&sup.session.status);
+        st.state = "starting".into();
+        st.estimated_wait_seconds = created.estimated_wait_seconds;
+    }
+    *lock(&sup.creds) = Some(Creds {
+        token: created.token.clone(),
+        session_id: created.session_id.clone(),
+        ended_at: None,
+        rated: false,
+    });
     let config = options::start_config(
-        &token,
+        &created.token,
         sup.config.server.as_deref(),
         o,
         &brand,
@@ -135,29 +172,43 @@ fn start_claimed<R: Runtime>(
     }
 }
 
-fn brand_of<R: Runtime>(
-    app: &AppHandle<R>,
-    sup: &Support,
-    o: &HelpOptions,
-    resource_dir: Option<&std::path::Path>,
-) -> Result<Brand> {
+/// `client` for the server: this OS, its version, the app's version, this plugin.
+fn client_info<R: Runtime>(app: &AppHandle<R>) -> Value {
+    let version = app.package_info().version.to_string();
+    options::client_info(
+        std::env::consts::OS,
+        options::os_version().as_deref(),
+        &version,
+    )
+}
+
+/// The company named to the customer: branding name, then the config's
+/// `company`, then the app's product name.
+pub(crate) fn company_of<R: Runtime>(app: &AppHandle<R>) -> String {
+    let sup = app.state::<Support>();
+    let base = sup.config.branding.as_ref().and_then(|b| b.name.clone());
+    base.or(sup.config.company.clone())
+        .unwrap_or_else(|| app.package_info().name.clone())
+}
+
+fn brand_of<R: Runtime>(app: &AppHandle<R>, sup: &Support, o: &HelpOptions) -> Result<Brand> {
     let base = sup.config.branding.clone().unwrap_or_default();
     let js = o.branding.clone().unwrap_or_default();
-    let company = js
-        .name
-        .or(base.name)
-        .or(sup.config.company.clone())
-        .unwrap_or_else(|| app.package_info().name.clone());
+    let company = js.name.unwrap_or_else(|| company_of(app));
     let color = js
         .color
         .or(base.color)
         .map(|c| options::brand_color(&c))
         .transpose()?;
-    let logo = js
-        .logo
-        .or(base.logo)
-        .map(|l| branding::load_logo(&l, resource_dir))
-        .transpose()?;
+    // A logo never stops a session: any failure is a warning and text-only branding.
+    let logo = js.logo.or(base.logo).and_then(|l| {
+        let resource_dir = app.path().resource_dir().ok();
+        let icon = app.default_window_icon();
+        let icon = icon.map(|i| (i.rgba(), i.width(), i.height()));
+        branding::load_logo(&l, resource_dir.as_deref(), icon)
+            .inspect_err(|e| warn(app, &e.code, &e.message))
+            .ok()
+    });
     Ok(Brand {
         company,
         color,
@@ -190,7 +241,10 @@ unsafe extern "C" fn on_event<R: Runtime>(user_data: *mut c_void, event_json: *c
         let ctx = unsafe { &*(user_data as *const Ctx<R>) };
         let json = unsafe { CStr::from_ptr(event_json) }.to_string_lossy();
         let mapped = events::map(&json, &mut lock(&ctx.session.status));
-        if let Some((name, payload)) = mapped {
+        if let Some((name, mut payload)) = mapped {
+            if name == "ended" {
+                payload["canRate"] = json!(ended(&ctx.app));
+            }
             let _ = ctx.app.emit(&format!("{}{name}", events::PREFIX), payload);
             if name == "ended" {
                 // SAFETY: `ended` is the library's last call, exactly once.
@@ -198,6 +252,19 @@ unsafe extern "C" fn on_event<R: Runtime>(user_data: *mut c_void, event_json: *c
             }
         }
     });
+}
+
+/// Start the rating window; whether the session can be rated.
+fn ended<R: Runtime>(app: &AppHandle<R>) -> bool {
+    let sup = app.state::<Support>();
+    let session_id = lock(&sup.session.status).session_id.clone();
+    let mut c = lock(&sup.creds);
+    let Some(c) = c.as_mut() else { return false };
+    c.ended_at = Some(Instant::now());
+    if c.session_id.is_none() {
+        c.session_id = session_id;
+    }
+    c.session_id.is_some() && !c.rated
 }
 
 /// End the session (the library's `ended` follows, `app_stopped`).
@@ -268,6 +335,65 @@ pub(crate) fn status<R: Runtime>(app: AppHandle<R>) -> Status {
     lock(&app.state::<Support>().session.status).clone()
 }
 
+/// What this app build can do, for feature checks. Never fails.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Info {
+    available: bool,
+    plugin_version: &'static str,
+    library_version: Option<String>,
+    library_found: bool,
+    library_path: Option<String>,
+    library_error: Option<Error>,
+    platform: &'static str,
+    guided_supported: bool,
+    screen_permission: &'static str,
+    company: String,
+}
+
+#[tauri::command]
+pub(crate) async fn get_info<R: Runtime>(app: AppHandle<R>) -> Info {
+    // Loading the library may touch the disk: off the main thread.
+    tauri::async_runtime::spawn_blocking(move || {
+        let lib = app.state::<Support>().lib(&app);
+        Info {
+            available: true,
+            plugin_version: env!("CARGO_PKG_VERSION"),
+            library_version: lib.as_ref().ok().map(|l| l.version()),
+            library_found: lib.is_ok(),
+            library_path: lib.as_ref().ok().map(|l| l.path.display().to_string()),
+            library_error: lib.err(),
+            platform: std::env::consts::OS,
+            // Linux is view-only: X11 cannot deliver input to one app only.
+            guided_supported: std::env::consts::OS != "linux",
+            screen_permission: permission::screen(),
+            company: company_of(&app),
+        }
+    })
+    .await
+    .expect("get_info does not panic")
+}
+
+/// `granted` or `denied` (macOS Screen Recording; always `granted` elsewhere).
+#[tauri::command]
+pub(crate) fn screen_permission() -> &'static str {
+    permission::screen()
+}
+
+/// Ask macOS for Screen Recording (its prompt shows once; later, System
+/// Settings). The state after; a grant counts after the app is relaunched.
+#[tauri::command]
+pub(crate) async fn request_screen_permission() -> &'static str {
+    tauri::async_runtime::spawn_blocking(permission::request)
+        .await
+        .unwrap_or("denied")
+}
+
+#[tauri::command]
+pub(crate) fn open_screen_permission_settings() -> Result<()> {
+    permission::open_settings()
+}
+
 /// Run `f` on the live handle (held locked, so `stop` cannot free it meanwhile).
 fn with_live<T>(s: &Session, f: impl FnOnce(*mut crate::ffi::GdEmbed) -> T) -> Result<T> {
     let active = lock(&s.status).active();
@@ -278,7 +404,9 @@ fn with_live<T>(s: &Session, f: impl FnOnce(*mut crate::ffi::GdEmbed) -> T) -> R
     }
 }
 
-async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Result<T> + Send + 'static) -> Result<T> {
+pub(crate) async fn blocking<T: Send + 'static>(
+    f: impl FnOnce() -> Result<T> + Send + 'static,
+) -> Result<T> {
     tauri::async_runtime::spawn_blocking(f)
         .await
         .map_err(|e| Error::new("internal", e.to_string()))?

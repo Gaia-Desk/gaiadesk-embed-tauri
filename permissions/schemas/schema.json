@@ -295,6 +295,126 @@
       "type": "string",
       "oneOf": [
         {
+          "description": "Enables the attach_diagnostics command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-attach-diagnostics",
+          "markdownDescription": "Enables the attach_diagnostics command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the attach_diagnostics command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-attach-diagnostics",
+          "markdownDescription": "Denies the attach_diagnostics command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the decline_request command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-decline-request",
+          "markdownDescription": "Enables the decline_request command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the decline_request command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-decline-request",
+          "markdownDescription": "Denies the decline_request command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the discard_diagnostics command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-discard-diagnostics",
+          "markdownDescription": "Enables the discard_diagnostics command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the discard_diagnostics command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-discard-diagnostics",
+          "markdownDescription": "Denies the discard_diagnostics command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_info command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-info",
+          "markdownDescription": "Enables the get_info command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_info command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-info",
+          "markdownDescription": "Denies the get_info command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the listen command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-listen",
+          "markdownDescription": "Enables the listen command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the listen command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-listen",
+          "markdownDescription": "Denies the listen command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the open_screen_permission_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-open-screen-permission-settings",
+          "markdownDescription": "Enables the open_screen_permission_settings command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the open_screen_permission_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-open-screen-permission-settings",
+          "markdownDescription": "Denies the open_screen_permission_settings command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the rate command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-rate",
+          "markdownDescription": "Enables the rate command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the rate command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-rate",
+          "markdownDescription": "Denies the rate command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the request_screen_permission command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-request-screen-permission",
+          "markdownDescription": "Enables the request_screen_permission command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the request_screen_permission command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-request-screen-permission",
+          "markdownDescription": "Denies the request_screen_permission command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the screen_permission command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-screen-permission",
+          "markdownDescription": "Enables the screen_permission command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the screen_permission command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-screen-permission",
+          "markdownDescription": "Denies the screen_permission command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the send_diagnostics command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-send-diagnostics",
+          "markdownDescription": "Enables the send_diagnostics command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the send_diagnostics command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-send-diagnostics",
+          "markdownDescription": "Denies the send_diagnostics command without any pre-configured scope."
+        },
+        {
           "description": "Enables the set_masks command without any pre-configured scope.",
           "type": "string",
           "const": "allow-set-masks",
@@ -355,10 +475,22 @@
           "markdownDescription": "Denies the stop command without any pre-configured scope."
         },
         {
-          "description": "Lets the app's pages start, watch, pause, mask and stop a GaiaDesk support session: start-help, stop, set-paused, set-masks and status.\n#### This default permission set includes:\n\n- `allow-start-help`\n- `allow-stop`\n- `allow-set-paused`\n- `allow-set-masks`\n- `allow-status`",
+          "description": "Enables the stop_listening command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-stop-listening",
+          "markdownDescription": "Enables the stop_listening command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the stop_listening command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-stop-listening",
+          "markdownDescription": "Denies the stop_listening command without any pre-configured scope."
+        },
+        {
+          "description": "Lets the app's pages start, watch, pause, mask and stop a GaiaDesk support session, check what the build supports and the macOS Screen Recording permission, rate a session, send diagnostics the customer agreed to, and listen for and decline session requests.\n#### This default permission set includes:\n\n- `allow-start-help`\n- `allow-stop`\n- `allow-set-paused`\n- `allow-set-masks`\n- `allow-status`\n- `allow-get-info`\n- `allow-screen-permission`\n- `allow-request-screen-permission`\n- `allow-open-screen-permission-settings`\n- `allow-rate`\n- `allow-attach-diagnostics`\n- `allow-send-diagnostics`\n- `allow-discard-diagnostics`\n- `allow-listen`\n- `allow-stop-listening`\n- `allow-decline-request`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Lets the app's pages start, watch, pause, mask and stop a GaiaDesk support session: start-help, stop, set-paused, set-masks and status.\n#### This default permission set includes:\n\n- `allow-start-help`\n- `allow-stop`\n- `allow-set-paused`\n- `allow-set-masks`\n- `allow-status`"
+          "markdownDescription": "Lets the app's pages start, watch, pause, mask and stop a GaiaDesk support session, check what the build supports and the macOS Screen Recording permission, rate a session, send diagnostics the customer agreed to, and listen for and decline session requests.\n#### This default permission set includes:\n\n- `allow-start-help`\n- `allow-stop`\n- `allow-set-paused`\n- `allow-set-masks`\n- `allow-status`\n- `allow-get-info`\n- `allow-screen-permission`\n- `allow-request-screen-permission`\n- `allow-open-screen-permission-settings`\n- `allow-rate`\n- `allow-attach-diagnostics`\n- `allow-send-diagnostics`\n- `allow-discard-diagnostics`\n- `allow-listen`\n- `allow-stop-listening`\n- `allow-decline-request`"
         }
       ]
     }

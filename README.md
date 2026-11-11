@@ -21,8 +21,8 @@ only**, while it is in front.
   unless you opt into `screen`.
 - A visible **"Sharing with Acme · Stop sharing"** indicator, drawn by the library, for as long as
   anything is shared.
-- **Masks**: mark an element `data-gaiadesk-mask` and it is painted black before a frame is encoded,
-  followed as it moves.
+- **Masks**: password, card and one-time-code fields are masked by default; mark any other element
+  `data-gaiadesk-mask` and it is painted black before a frame is encoded, followed as it moves.
 - **View-only by default.** Guided input lands only in your app's own windows, and your customer
   can pause it.
 
@@ -33,23 +33,24 @@ Not in a desktop app? See the [web SDK](https://gaiadesk.net/docs/web-in-app-sup
 ## Install
 
 ```sh
-cargo add tauri-plugin-gaiadesk-support@0.2                # in src-tauri/
-cargo add --build gaiadesk-embed-fetch@0.2                 # in src-tauri/: fetches the library at build time
-npm install @gaiadesk/tauri-plugin-support@0.2             # your frontend
+cargo add tauri-plugin-gaiadesk-support@0.3                # in src-tauri/
+cargo add --build gaiadesk-embed-fetch@0.3                 # in src-tauri/: fetches the library at build time
+npm install @gaiadesk/tauri-plugin-support@0.3             # your frontend
 ```
 
 ### Versions that go together
 
 | Part | Version |
 |---|---|
-| `tauri-plugin-gaiadesk-support` (crates.io) | 0.2.0 |
-| `gaiadesk-embed-fetch` (crates.io, build helper) | 0.2.0 |
+| `tauri-plugin-gaiadesk-support` (crates.io) | 0.3.0 |
+| `gaiadesk-embed-fetch` (crates.io, build helper) | 0.3.0 |
 | `libgaiadesk_embed` (the native library it fetches) | 0.2.0 |
-| `@gaiadesk/tauri-plugin-support` (npm) | 0.2.0 |
+| `@gaiadesk/tauri-plugin-support` (npm) | 0.3.0 |
 | Tauri | 2.x (the crate needs `tauri` 2.11 or later) |
 
-The plugin has its own 0.x version line, which follows the library's; it is not Tauri's 2.x. Keep
-all four GaiaDesk parts on the same version.
+The plugin has its own 0.x version line; it is not Tauri's 2.x. Keep the crate, the fetch helper
+and the npm package on the same version: the fetch helper pins the library version that goes with
+them (0.3.0 fetches library 0.2.0).
 
 ## Quick start
 
@@ -136,7 +137,7 @@ tauri::Builder::default()
 {
   "plugins": {
     "gaiadesk-support": {
-      "publishableKey": "ak_…",
+      "publishableKey": "pk_live_…",
       "company": "Acme",
       "branding": { "color": "#0f766e", "logo": "icons/logo.png" }
     }
@@ -145,6 +146,15 @@ tauri::Builder::default()
 ```
 
 `src-tauri/capabilities/default.json`: add `"gaiadesk-support:default"` to `permissions`.
+
+**Never a secret key.** `publishableKey` takes a publishable key: `pk_live_…`, `pk_test_…` for test
+mode, or an older `ak_…` one. A secret key (`sk_live_…`, `sk_test_…`) can do anything on your
+account, and anything in `tauri.conf.json` ships inside your app, so the plugin refuses it twice:
+its build script fails the build when the config the Tauri CLI passes it (`tauri.conf.json`, the
+platform files and `--config`, merged) holds an `sk_` key, and `startHelp` rejects with
+`secret_key_in_app` (before any dialog or request) when the configured key, a `Builder` key or a
+`publishableKey` option starts with `sk_`. A plain `cargo build` without the Tauri CLI skips the
+build-time check; the run-time one always applies.
 
 ### 3. Add the button
 
@@ -250,16 +260,19 @@ If your window loads your site (`"url": "https://yourapp.com"`) instead of bundl
 |---|---|
 | `publishableKey` | Overrides the config's. |
 | `embedToken` | `gdemb_…` from your backend. Wins over a publishable key. |
+| `requestId` | A session request (`sr_…`) heard by `listen`; use `acceptRequest(id, options)`. |
 | `customer` | Who the customer is: at most 16 short fields (publishable-key flow). |
 | `mode` | `view` (default) or `cobrowse` (publishable-key flow; your backend decides otherwise). |
 | `expiresIn` | Seconds, 60 to 3600 (publishable-key flow). |
 | `guided` | Allow guided input (default `false`). Needs a `cobrowse` session too. |
 | `capture` | `window` (default): this app's window. `app`: every window of this app (macOS; elsewhere the focused one, followed). `screen`: the display it is on (opt-in). |
 | `branding` | `{ name, color, logo }`: see below. Merged over the config's `branding`. |
-| `masks` | Rects in CSS pixels, or a selector (default `[data-gaiadesk-mask]`). |
+| `masks` | Rects in CSS pixels, or a selector (default `[data-gaiadesk-mask]`; secret fields are always added, see Masks). |
+| `debugMasks` | Outline every masked region in the page while the session runs (development). |
 | `fps` | 1 to 30 (default 15). |
 | `consentGranted` | `true` only when you asked your user yourself and they agreed. |
 | `askConsent` | Your dialog where the OS has none (Linux). Default `window.confirm`. |
+| `askDiagnostics` | Your "Also share app logs?" dialog (see Diagnostics). Default: a small dialog in the page. |
 
 Plugin config (`plugins."gaiadesk-support"`, or `Builder` in Rust): `publishableKey`, `company`,
 `server` (default `https://gaiadesk.net`), `branding`, `libraryPath`.
@@ -274,25 +287,41 @@ Plugin config (`plugins."gaiadesk-support"`, or `Builder` in Rust): `publishable
 |---|---|
 | `name` | "Sharing with **Acme**" on the dialog and the indicator. Default: the config's `company`, then your app's product name. |
 | `color` | Accent colour, `#rrggbb` or `#rgb`. |
-| `logo` | A PNG, at most 256 KiB (262,144 bytes): a path, an `https://` URL, or a `data:image/png;base64,` URL. |
+| `logo` | A PNG: a path, an `https://` URL, a `data:image/png;base64,` URL, or `"$appIcon"` (your app's own window icon). |
 
-A relative logo path is read from your app's bundled resources directory (Tauri's
-`resource_dir()`: `Contents/Resources` in a macOS app), so list it in `bundle.resources` with that
-target path (`"logo": "icons/logo.png"` needs `"icons/logo.png": "icons/logo.png"`). An absolute
-path is read as is. A logo that cannot be read or downloaded, is not a PNG, or is over 256 KiB
-makes `startHelp` reject with `bad_logo`, before the consent dialog.
+**Where a relative path resolves:** in your app's bundled resources directory (Tauri's
+`resource_dir()`: `Contents/Resources` in a macOS app, the install directory on Windows,
+`/usr/lib/<app>` for a Linux package; under `tauri dev`, `target/debug/`), so list the file in
+`bundle.resources` with that target path (`"logo": "icons/logo.png"` needs
+`"icons/logo.png": "icons/logo.png"`). An absolute path is read as is. `"$appIcon"` uses Tauri's
+default window icon (`bundle.icon`), so nothing needs bundling.
+
+**A logo never stops a session.** One over 256 KiB (the library's limit, 262,144 bytes) is
+downscaled until it fits (sources up to 8 MiB). One that cannot be read, downloaded or decoded, or
+is not a PNG, is a `warning` event (`{code: "bad_logo", message}`) and the session goes on with
+your name and colour only. A bad `color` still rejects with `bad_color`.
 
 Colour and logo need `libgaiadesk_embed` 0.2 or later; with 0.1.0 the plugin shows the plain dialog
 and indicator with your name, and drops them silently.
 
 ## Masks
 
-Anything marked `data-gaiadesk-mask` is painted out from the first frame, and followed while the
-session lasts (resizes, scrolling, moving to another display). Or pass `masks: [{x, y, w, h}]` in CSS
+Secrets are masked by default: `input[type=password]` and fields whose `autocomplete` is a card field
+(`cc-*`), `one-time-code`, `current-password` or `new-password`, whatever selector you pass. Put
+`data-gaiadesk-unmask` on an element (or an ancestor) to show it anyway; an element that carries
+`data-gaiadesk-mask` itself is masked even there. Anything marked `data-gaiadesk-mask` is painted
+out from the first frame too, and every masked element is followed while the session lasts
+(resizes, scrolling, moving to another display). Or pass `masks: [{x, y, w, h}]` in CSS
 pixels of the page, or call `setMasks(rects | selector)` yourself; `[]` clears. The plugin turns
 CSS pixels into the library's units (points from the window frame on macOS, `GetWindowRect` pixels
 on Windows, X11 pixels on Linux) for the window that called. Masks **fail closed**: if the window
 cannot be located, the whole picture is painted out. Page zoom other than 100 % is not accounted for.
+Rects you pass yourself are used as they are (no secret scan).
+
+To see what is masked while you develop, `showMaskOverlay(true)` (or `startHelp({ debugMasks: true })`)
+outlines every masked region of the page in red, kept up to date; `showMaskOverlay(false)` removes
+it. The outlines are part of the page, so an agent in a session sees them too: development only.
+`maskedElements(selector?)` and `rectsOf(selector?)` return what would be masked.
 
 ## Events
 
@@ -301,36 +330,148 @@ cannot be located, the whole picture is painted out. Page zoom other than 100 % 
 
 | Event | Payload | |
 |---|---|---|
-| `started` | `{code, sessionId, mode, expiresAt}` | The session is up; `code` is the nine-digit support code |
+| `started` | `{code, sessionId, mode, expiresAt, estimatedWaitSeconds}` | The session is up; `code` is the nine-digit support code; `estimatedWaitSeconds` your team's typical wait for an agent when GaiaDesk has an estimate (publishable-key and request sessions), else `null` |
 | `joined` | `{agent}` | An agent joined (their email, or `null`) |
 | `left` | `{}` | The agent left |
 | `paused` | `{paused}` | Guided input paused (by the customer on the indicator, or by you) or resumed |
 | `action` | `{action, applied, reason}` | A guided request and its outcome (`masked`, `not_focused`, …) |
 | `error` | `{code, message}` | e.g. `capture_failed`, `connect_failed` |
-| `ended` | `{reason}` | `stopped` (the customer), `app_stopped`, `disconnected`, `expired`, `error`. Always last |
+| `ended` | `{reason, canRate}` | `stopped` (the customer), `app_stopped`, `disconnected`, `expired`, `error`. Always last. `canRate`: `rate()` may be called |
 | `state` | `{state}` | `starting`, `waiting`, `connected`, `ended` |
+| `warning` | `{code, message}` | Something that does not stop the session: `bad_logo`, `diagnostics_skipped`, an upload's refusal |
+| `permission_required` | `{permission, restartRequired}` | macOS Screen Recording is not allowed; `startHelp` refused before creating a session |
+| `diagnostics_sent` | `{attachments}` | Diagnostics uploaded after the customer agreed |
+| `listening` | `{}` | `listen` is connected |
+| `request` | `{id, company, mode, message, expiresAt}` | An agent asks your customer to share |
+| `request_closed` | `{id, state}` | That request is no longer pending (`accepted`, `declined`, `expired`) |
+| `listen_stopped` | `{reason, message}` | The listen token was revoked, expired or refused; listening stopped |
 
 Commands: `startHelp`, `stop`, `pause`, `resume` (refused, `pause_refused`, when the customer
-paused), `setMasks`, `status` (`{state, code, sessionId, mode, agent, paused, endReason}`).
+paused), `setMasks`, `status` (`{state, code, sessionId, mode, agent, paused, endReason,
+estimatedWaitSeconds}`), `getInfo`, `screenPermission`, `requestScreenPermission`,
+`openScreenPermissionSettings`, `rate`, `attachDiagnostics`, `listen`, `stopListening`,
+`acceptRequest`, `declineRequest`, `showMaskOverlay`.
 Refusals reject with a `SupportError` whose `code` is the library's (`consent_required`,
 `bad_token`, `bad_config`, `bad_rects`, …) or the plugin's: `declined`, `busy`, `no_session`,
-`library_missing`, `create_failed` or the server's reason (`too_many_open_sessions`, …),
-`bad_logo`, `bad_color`. A branding value the library's dialog refuses rejects with `bad_config`
-(and an `error` event), never as `declined`.
+`library_missing`, `secret_key_in_app`, `permission_required`, `not_listening`, `create_failed`
+or the server's reason (`too_many_open_sessions`, `request_expired`, …), `bad_color`,
+`bad_options`. A branding value the library's dialog refuses rejects with `bad_config` (and an
+`error` event), never as `declined`.
+
+## Feature detection
+
+`getInfo()` never throws. In a build without the plugin (an older version of your app, or the
+plugin not registered) it answers `{ available: false }`, so a shared frontend can hide its help
+button without try/catch:
+
+```ts
+const info = await getInfo();
+// { available: true, pluginVersion: "0.3.0", libraryVersion: "0.2.0", libraryFound: true,
+//   libraryPath: "…/Frameworks/libgaiadesk_embed.dylib", libraryError: null, platform: "macos",
+//   guidedSupported: true, screenPermission: "granted", company: "Acme" }
+if (!info.available || !info.libraryFound) hideHelpButton();
+```
+
+`guidedSupported` is `false` on Linux (view-only). Loading the library to answer is the same load
+`startHelp` would do.
+
+## Ratings
+
+When a session ends, `ended` says `canRate: true` if the plugin holds the session's credentials
+(every session this app run started). Ask your customer however you like, then:
+
+```ts
+on("ended", async ({ canRate }) => {
+  if (canRate) await rate(5, "Quick fix, thanks!");    // 1 to 5; comment optional, ≤ 500 characters
+});
+```
+
+The rating goes to `POST /v1/support/sessions/{id}/csat` with the session's own embed token, which
+the plugin keeps in memory (never on disk) until the session is rated, 24 hours after its end, or
+the next session. It shows on the session in the console and in the `support.session.rated`
+webhook. Server refusals: `already_rated`, `rating_window_closed`, `bad_rating`, `bad_comment`;
+nothing to rate: `no_session`.
+
+## Diagnostics
+
+Your app can offer your support team its logs; your customer decides:
+
+```ts
+await attachDiagnostics({ files: [await appLogPath()], text: JSON.stringify(state), maxBytes: 2_000_000 });
+await startHelp();   // after "Share this window?": "Also share app logs with Acme support?"
+```
+
+Nothing is sent until your customer says yes. The question comes right after they agree to share
+(or at once, when `attachDiagnostics` is called while a session is up). The library's consent
+dialog takes no extra line, and macOS's webview has no `window.confirm`, so it is a second, small
+dialog drawn in your page (`confirmInPage`); pass `askDiagnostics(question)` to `startHelp` or
+`attachDiagnostics` to ask with your own UI. A no discards what was attached.
+
+Each file is sent as its last `maxBytes` (at most and by default 10 MiB; logs grow at the end),
+`text` as `diagnostics.txt`; at most 10 attachments and 25 MiB per session. They are uploaded with
+the session's embed token to `POST /v1/support/sessions/{id}/attachments`, appear on the session in
+the console (download only), are kept 30 days, and fire `support.session.attachment_added`. A file
+that cannot be read is skipped with a `warning`; a refused upload is a `warning` and stops the
+rest. Files are read by the plugin's Rust side, so any path the app can read can be attached: only
+attach what you mean to.
+
+## Session requests
+
+An agent can ask a customer to share from the console ("Ask to share"). Your backend vouches for the
+signed-in user by minting a listen token (`POST /v1/support/listeners` with your **secret** key and
+your own `external_id` for that user) and hands it to their app:
+
+```ts
+await listen({ listenToken });                       // gdlis_…, from your backend
+on("request", async (r) => {
+  if (await myPrompt(`${r.company} support would like to see this app. ${r.message ?? ""}`)) {
+    await acceptRequest(r.id, { guided: true });     // the consent dialog still shows
+  } else {
+    await declineRequest(r.id);
+  }
+});
+on("request_closed", ({ id }) => closeMyPrompt(id));  // expired, or answered elsewhere
+```
+
+The plugin holds the stream (`GET /v1/support/requests/stream`), reconnects with backoff after a
+network error (and every two minutes, to notice a connection that died silently), tells you each
+request once, and stops for good (`listen_stopped`) when the token is revoked, expires or is
+refused. `acceptRequest` shows the consent dialog first; a no declines the request. On a yes it
+accepts the request (`POST …/accept`, which creates the session and sends your app's `client`
+info) and starts sharing, exactly as `startHelp` does. `stopListening()` at sign-out.
 
 Quitting the app ends the session (`app_stopped`).
 
 ## Permissions
 
 `gaiadesk-support:default` allows every command: `allow-start-help`, `allow-stop`,
-`allow-set-paused`, `allow-set-masks`, `allow-status`. Grant it only to windows that should offer
-help; each `allow-*` / `deny-*` can be used on its own.
+`allow-set-paused`, `allow-set-masks`, `allow-status`, `allow-get-info`,
+`allow-screen-permission`, `allow-request-screen-permission`,
+`allow-open-screen-permission-settings`, `allow-rate`, `allow-attach-diagnostics`,
+`allow-send-diagnostics`, `allow-discard-diagnostics`, `allow-listen`, `allow-stop-listening`,
+`allow-decline-request`. Grant it only to windows that should offer help; each `allow-*` /
+`deny-*` can be used on its own (e.g. `deny-attach-diagnostics` to forbid diagnostics).
 
 ## macOS
 
-Your app needs the **Screen Recording** permission; macOS asks your user the first time a session
-starts, and the app may need to be reopened after it is granted. The library's dialog and indicator
-run on the main thread, which the plugin takes care of. Guided input is delivered inside your app's
+Your app needs the **Screen Recording** permission, for every `capture` mode. `startHelp` checks it
+first (`CGPreflightScreenCaptureAccess`): when it is not granted, it emits `permission_required
+{permission: "screen", restartRequired: true}` and rejects with `permission_required` before any
+dialog or session, so no agent ever joins a session that cannot share. Then:
+
+```ts
+if ((await screenPermission()) !== "granted") {
+  await requestScreenPermission();        // macOS's own prompt, the first time only
+  // already refused once? send them to the switch:
+  await openScreenPermissionSettings();   // System Settings → Privacy & Security → Screen Recording
+}
+```
+
+macOS's public API cannot tell "never asked" from "refused", so `screenPermission()` answers
+`granted` or `denied`; after a grant your app must be relaunched before it counts. `mountHelpButton`
+calls `requestScreenPermission()` for you on `permission_required`. Windows and Linux always
+answer `granted`. The library's dialog and indicator run on the main thread, which the plugin takes
+care of. Guided input is delivered inside your app's
 process, so it needs no Accessibility permission.
 
 ## Platforms
@@ -388,7 +529,7 @@ Put your publishable key in `src-tauri/tauri.conf.json` first, registered for `a
 ## Development
 
 ```sh
-npm ci && npm run build              # guest-js → dist-js/
+npm ci && npm test                   # guest-js → dist-js/, then its DOM tests (masks, overlay, dialog)
 cargo test --workspace               # unit tests + live tests against the real library
 cargo clippy --workspace --all-targets -- -D warnings
 ```

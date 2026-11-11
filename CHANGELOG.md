@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.3.0
+
+Still fetches `libgaiadesk_embed` 0.2.0 (no library change).
+
+- **Secret keys refused**: an `sk_…` key in `plugins."gaiadesk-support".publishableKey` fails the
+  build (the plugin's build script reads the config the Tauri CLI passes it), and `startHelp`
+  rejects with `secret_key_in_app` when the configured, `Builder` or passed key is one.
+  `pk_live_…`, `pk_test_…` and legacy `ak_…` keys are accepted.
+- `getInfo()`: plugin and library versions, where the library was found, platform, guided support,
+  Screen Recording state, company. Never throws; `{available: false}` in a build without the plugin.
+- macOS Screen Recording: `screenPermission()`, `requestScreenPermission()`,
+  `openScreenPermissionSettings()`; `startHelp` checks first and, when it is not granted, emits
+  `permission_required` and rejects with `permission_required` before creating any session.
+- Masks: password, card (`cc-*`), `one-time-code`, `current-password` and `new-password` fields are
+  masked by default; `data-gaiadesk-unmask` opts out; `showMaskOverlay()` / `debugMasks` outline
+  what is masked; `maskedElements()`.
+- Logos never stop a session: an oversized PNG is downscaled to fit 256 KiB, any other failure is a
+  `warning` event and text-only branding; `logo: "$appIcon"` uses the app's window icon.
+- Sessions created with a publishable key send `client` (OS, OS version, app version, SDK); the
+  `started` event and `status()` carry `estimatedWaitSeconds`.
+- Ratings: `ended` carries `canRate`; `rate(rating, comment?)`.
+- Diagnostics: `attachDiagnostics({files, text, maxBytes})`, uploaded only after the customer agrees
+  ("Also share app logs with …?", an in-page dialog or your `askDiagnostics`).
+- Session requests: `listen({listenToken})`, `request` / `request_closed` / `listening` /
+  `listen_stopped` events, `acceptRequest(id, options)` (consent still shown), `declineRequest(id)`,
+  `stopListening()`.
+- New commands and their `allow-*` permissions, all in `gaiadesk-support:default`.
+
 ## 0.2.0
 
 The first release; versioned with `libgaiadesk_embed` 0.2.0, which it downloads.
