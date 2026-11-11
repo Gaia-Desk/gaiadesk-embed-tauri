@@ -14,7 +14,11 @@ use crate::{branding, http, lock, Handle, Session, Support};
 /// Ask, create the session if needed, start. Resolves once sharing has
 /// started (events follow); rejects with `{code, message}`.
 #[tauri::command]
-pub(crate) async fn start_help<R: Runtime>(app: AppHandle<R>, window: WebviewWindow<R>, options: Option<HelpOptions>) -> Result<Status> {
+pub(crate) async fn start_help<R: Runtime>(
+    app: AppHandle<R>,
+    window: WebviewWindow<R>,
+    options: Option<HelpOptions>,
+) -> Result<Status> {
     let o = options.unwrap_or_default();
     blocking(move || {
         let sup = app.state::<Support>();
@@ -36,13 +40,22 @@ fn claim(s: &Session) -> Result<()> {
     if st.active() {
         return Err(Error::new("busy", "a support session is already running"));
     }
-    *st = Status { state: "consent".into(), ..Status::default() };
+    *st = Status {
+        state: "consent".into(),
+        ..Status::default()
+    };
     drop(st);
     stop_handle(s);
     Ok(())
 }
 
-fn start_claimed<R: Runtime>(app: &AppHandle<R>, sup: &Support, lib: &'static Lib, window: &WebviewWindow<R>, o: &HelpOptions) -> Result<Status> {
+fn start_claimed<R: Runtime>(
+    app: &AppHandle<R>,
+    sup: &Support,
+    lib: &'static Lib,
+    window: &WebviewWindow<R>,
+    o: &HelpOptions,
+) -> Result<Status> {
     let resource_dir = app.path().resource_dir().ok();
     let brand = brand_of(app, sup, o, resource_dir.as_deref())?;
     let masks = library_rects(window, &o.masks);
@@ -68,19 +81,47 @@ fn start_claimed<R: Runtime>(app: &AppHandle<R>, sup: &Support, lib: &'static Li
         }
     }
 
-    let token = match (&o.embed_token, o.publishable_key.as_ref().or(sup.config.publishable_key.as_ref())) {
+    let token = match (
+        &o.embed_token,
+        o.publishable_key
+            .as_ref()
+            .or(sup.config.publishable_key.as_ref()),
+    ) {
         (Some(t), _) => t.clone(),
         (None, Some(key)) => {
             let origin = options::native_origin(&app.config().identifier);
-            http::create_session(&options::api_base(sup.config.server.as_deref()), key, &origin, &options::session_body(o))?
+            http::create_session(
+                &options::api_base(sup.config.server.as_deref()),
+                key,
+                &origin,
+                &options::session_body(o),
+            )?
         }
-        (None, None) => return Err(Error::new("bad_options", "give startHelp an embedToken, or set publishableKey in the plugin config")),
+        (None, None) => {
+            return Err(Error::new(
+                "bad_options",
+                "give startHelp an embedToken, or set publishableKey in the plugin config",
+            ))
+        }
     };
 
     lock(&sup.session.status).state = "starting".into();
-    let config = options::start_config(&token, sup.config.server.as_deref(), o, &brand, &masks, lib.supports_branding());
-    let ctx = Box::into_raw(Box::new(Ctx { app: app.clone(), session: sup.session.clone() }));
-    let cb = GdEmbedCallbacks { on_event: Some(on_event::<R>), user_data: ctx as *mut c_void };
+    let config = options::start_config(
+        &token,
+        sup.config.server.as_deref(),
+        o,
+        &brand,
+        &masks,
+        lib.supports_branding(),
+    );
+    let ctx = Box::into_raw(Box::new(Ctx {
+        app: app.clone(),
+        session: sup.session.clone(),
+    }));
+    let cb = GdEmbedCallbacks {
+        on_event: Some(on_event::<R>),
+        user_data: ctx as *mut c_void,
+    };
     match lib.start(&config, cb) {
         Ok(h) => {
             *lock(&sup.session.handle) = Some(Handle(h));
@@ -94,13 +135,34 @@ fn start_claimed<R: Runtime>(app: &AppHandle<R>, sup: &Support, lib: &'static Li
     }
 }
 
-fn brand_of<R: Runtime>(app: &AppHandle<R>, sup: &Support, o: &HelpOptions, resource_dir: Option<&std::path::Path>) -> Result<Brand> {
+fn brand_of<R: Runtime>(
+    app: &AppHandle<R>,
+    sup: &Support,
+    o: &HelpOptions,
+    resource_dir: Option<&std::path::Path>,
+) -> Result<Brand> {
     let base = sup.config.branding.clone().unwrap_or_default();
     let js = o.branding.clone().unwrap_or_default();
-    let company = js.name.or(base.name).or(sup.config.company.clone()).unwrap_or_else(|| app.package_info().name.clone());
-    let color = js.color.or(base.color).map(|c| options::brand_color(&c)).transpose()?;
-    let logo = js.logo.or(base.logo).map(|l| branding::load_logo(&l, resource_dir)).transpose()?;
-    Ok(Brand { company, color, logo_png_base64: logo })
+    let company = js
+        .name
+        .or(base.name)
+        .or(sup.config.company.clone())
+        .unwrap_or_else(|| app.package_info().name.clone());
+    let color = js
+        .color
+        .or(base.color)
+        .map(|c| options::brand_color(&c))
+        .transpose()?;
+    let logo = js
+        .logo
+        .or(base.logo)
+        .map(|l| branding::load_logo(&l, resource_dir))
+        .transpose()?;
+    Ok(Brand {
+        company,
+        color,
+        logo_png_base64: logo,
+    })
 }
 
 /// CSS-pixel rects of the calling page → the library's units.
@@ -110,7 +172,10 @@ fn library_rects<R: Runtime>(w: &WebviewWindow<R>, rects: &[CssRect]) -> Vec<GdR
         (Ok(i), Ok(o)) => ((i.x - o.x) as f64, (i.y - o.y) as f64),
         _ => (0.0, 0.0),
     };
-    rects.iter().map(|r| options::to_library_rect(r, offset, scale, std::env::consts::OS)).collect()
+    rects
+        .iter()
+        .map(|r| options::to_library_rect(r, offset, scale, std::env::consts::OS))
+        .collect()
 }
 
 struct Ctx<R: Runtime> {
@@ -172,7 +237,10 @@ pub(crate) async fn set_paused<R: Runtime>(app: AppHandle<R>, paused: bool) -> R
                 lock(&sup.session.status).paused = paused;
                 Ok(lock(&sup.session.status).clone())
             }
-            -2 => Err(Error::new("pause_refused", "your customer paused guided control; only they can resume it")),
+            -2 => Err(Error::new(
+                "pause_refused",
+                "your customer paused guided control; only they can resume it",
+            )),
             _ => Err(Error::new("no_session", "no support session is running")),
         }
     })
@@ -181,7 +249,11 @@ pub(crate) async fn set_paused<R: Runtime>(app: AppHandle<R>, paused: bool) -> R
 
 /// Replace the masks (CSS pixels of the calling page; `[]` clears).
 #[tauri::command]
-pub(crate) async fn set_masks<R: Runtime>(app: AppHandle<R>, window: WebviewWindow<R>, masks: Vec<CssRect>) -> Result<()> {
+pub(crate) async fn set_masks<R: Runtime>(
+    app: AppHandle<R>,
+    window: WebviewWindow<R>,
+    masks: Vec<CssRect>,
+) -> Result<()> {
     blocking(move || {
         let sup = app.state::<Support>();
         let lib = sup.lib(&app)?;
@@ -207,5 +279,7 @@ fn with_live<T>(s: &Session, f: impl FnOnce(*mut crate::ffi::GdEmbed) -> T) -> R
 }
 
 async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Result<T> + Send + 'static) -> Result<T> {
-    tauri::async_runtime::spawn_blocking(f).await.map_err(|e| Error::new("internal", e.to_string()))?
+    tauri::async_runtime::spawn_blocking(f)
+        .await
+        .map_err(|e| Error::new("internal", e.to_string()))?
 }

@@ -7,6 +7,7 @@ name = "acme-desk"
 version = "0.1.0"
 dependencies = [
  "gaiadesk-embed-fetch",
+ "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-gaiadesk-support",

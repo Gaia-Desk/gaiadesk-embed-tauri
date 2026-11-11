@@ -14,7 +14,10 @@ pub struct Error {
 
 impl Error {
     pub fn new(code: &str, message: impl Into<String>) -> Self {
-        Error { code: code.to_string(), message: message.into() }
+        Error {
+            code: code.to_string(),
+            message: message.into(),
+        }
     }
 }
 

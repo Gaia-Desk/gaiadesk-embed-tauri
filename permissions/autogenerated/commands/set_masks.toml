@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-set-masks"
+description = "Enables the set_masks command without any pre-configured scope."
+commands.allow = ["set_masks"]
+
+[[permission]]
+identifier = "deny-set-masks"
+description = "Denies the set_masks command without any pre-configured scope."
+commands.deny = ["set_masks"]

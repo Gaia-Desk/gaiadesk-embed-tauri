@@ -107,17 +107,36 @@ pub struct Brand {
 
 /// `#rrggbb` (lowercase) from `#rrggbb` or `#rgb`. Pure.
 pub fn brand_color(c: &str) -> Result<String> {
-    let h = c.trim().strip_prefix('#').filter(|h| h.bytes().all(|b| b.is_ascii_hexdigit()));
+    let h = c
+        .trim()
+        .strip_prefix('#')
+        .filter(|h| h.bytes().all(|b| b.is_ascii_hexdigit()));
     match h {
         Some(h) if h.len() == 6 => Ok(format!("#{}", h.to_ascii_lowercase())),
-        Some(h) if h.len() == 3 => Ok(format!("#{}", h.chars().flat_map(|c| [c, c]).collect::<String>().to_ascii_lowercase())),
-        _ => Err(Error::new("bad_color", format!("branding.color must be #rrggbb (not {c:?})"))),
+        Some(h) if h.len() == 3 => Ok(format!(
+            "#{}",
+            h.chars()
+                .flat_map(|c| [c, c])
+                .collect::<String>()
+                .to_ascii_lowercase()
+        )),
+        _ => Err(Error::new(
+            "bad_color",
+            format!("branding.color must be #rrggbb (not {c:?})"),
+        )),
     }
 }
 
 /// `gd_embed_start`'s JSON. Branding keys only when the library knows them
 /// (`branded`): an older library refuses unknown keys. Pure.
-pub fn start_config(token: &str, server: Option<&str>, o: &HelpOptions, brand: &Brand, masks: &[GdRect], branded: bool) -> String {
+pub fn start_config(
+    token: &str,
+    server: Option<&str>,
+    o: &HelpOptions,
+    brand: &Brand,
+    masks: &[GdRect],
+    branded: bool,
+) -> String {
     let mut c = json!({
         "embed_token": token,
         "consent_granted": true,
@@ -143,7 +162,8 @@ pub fn start_config(token: &str, server: Option<&str>, o: &HelpOptions, brand: &
 
 /// `gd_embed_show_consent_ex`'s JSON. Pure.
 pub fn consent_options(o: &HelpOptions, brand: &Brand) -> String {
-    let mut c = json!({ "company": brand.company, "capture": o.capture.as_str(), "guided": o.guided });
+    let mut c =
+        json!({ "company": brand.company, "capture": o.capture.as_str(), "guided": o.guided });
     add_brand(c.as_object_mut().expect("object"), brand);
     c.to_string()
 }
@@ -191,9 +211,19 @@ pub fn session_body(o: &HelpOptions) -> String {
 /// (`inner_position - outer_position`, physical). Assumes page zoom 1. Pure.
 pub fn to_library_rect(r: &CssRect, content_offset: (f64, f64), scale: f64, os: &str) -> GdRect {
     if os == "macos" {
-        GdRect { x: content_offset.0 / scale + r.x, y: content_offset.1 / scale + r.y, w: r.w, h: r.h }
+        GdRect {
+            x: content_offset.0 / scale + r.x,
+            y: content_offset.1 / scale + r.y,
+            w: r.w,
+            h: r.h,
+        }
     } else {
-        GdRect { x: content_offset.0 + r.x * scale, y: content_offset.1 + r.y * scale, w: r.w * scale, h: r.h * scale }
+        GdRect {
+            x: content_offset.0 + r.x * scale,
+            y: content_offset.1 + r.y * scale,
+            w: r.w * scale,
+            h: r.h * scale,
+        }
     }
 }
 
@@ -206,14 +236,31 @@ mod tests {
     }
 
     fn brand() -> Brand {
-        Brand { company: "Acme".into(), color: Some("#0f766e".into()), logo_png_base64: Some("iVBO".into()) }
+        Brand {
+            company: "Acme".into(),
+            color: Some("#0f766e".into()),
+            logo_png_base64: Some("iVBO".into()),
+        }
     }
 
     #[test]
     fn start_config_spells_the_library_keys() {
         let o = opts(json!({ "guided": true, "capture": "screen", "fps": 10 }));
-        let masks = [GdRect { x: 1.0, y: 2.0, w: 3.0, h: 4.0 }];
-        let c: Value = serde_json::from_str(&start_config("gdemb_x", Some("http://localhost:9000"), &o, &brand(), &masks, true)).unwrap();
+        let masks = [GdRect {
+            x: 1.0,
+            y: 2.0,
+            w: 3.0,
+            h: 4.0,
+        }];
+        let c: Value = serde_json::from_str(&start_config(
+            "gdemb_x",
+            Some("http://localhost:9000"),
+            &o,
+            &brand(),
+            &masks,
+            true,
+        ))
+        .unwrap();
         assert_eq!(
             c,
             json!({
@@ -226,16 +273,42 @@ mod tests {
 
     #[test]
     fn an_older_library_gets_no_branding_keys() {
-        let c: Value = serde_json::from_str(&start_config("gdemb_x", None, &HelpOptions::default(), &brand(), &[], false)).unwrap();
-        assert_eq!(c, json!({ "embed_token": "gdemb_x", "consent_granted": true, "company": "Acme", "capture": "window", "guided": false }));
+        let c: Value = serde_json::from_str(&start_config(
+            "gdemb_x",
+            None,
+            &HelpOptions::default(),
+            &brand(),
+            &[],
+            false,
+        ))
+        .unwrap();
+        assert_eq!(
+            c,
+            json!({ "embed_token": "gdemb_x", "consent_granted": true, "company": "Acme", "capture": "window", "guided": false })
+        );
     }
 
     #[test]
     fn consent_options_carry_the_brand() {
-        let c: Value = serde_json::from_str(&consent_options(&opts(json!({ "guided": true })), &brand())).unwrap();
-        assert_eq!(c, json!({ "company": "Acme", "capture": "window", "guided": true, "brand_color": "#0f766e", "logo_png_base64": "iVBO" }));
-        let plain: Value = serde_json::from_str(&consent_options(&HelpOptions::default(), &Brand { company: "A".into(), ..Brand::default() })).unwrap();
-        assert_eq!(plain, json!({ "company": "A", "capture": "window", "guided": false }));
+        let c: Value =
+            serde_json::from_str(&consent_options(&opts(json!({ "guided": true })), &brand()))
+                .unwrap();
+        assert_eq!(
+            c,
+            json!({ "company": "Acme", "capture": "window", "guided": true, "brand_color": "#0f766e", "logo_png_base64": "iVBO" })
+        );
+        let plain: Value = serde_json::from_str(&consent_options(
+            &HelpOptions::default(),
+            &Brand {
+                company: "A".into(),
+                ..Brand::default()
+            },
+        ))
+        .unwrap();
+        assert_eq!(
+            plain,
+            json!({ "company": "A", "capture": "window", "guided": false })
+        );
     }
 
     #[test]
@@ -244,7 +317,9 @@ mod tests {
         assert!(serde_json::from_value::<HelpOptions>(json!({ "mode": "control" })).is_err());
         assert!(serde_json::from_value::<HelpOptions>(json!({ "embedTokn": "x" })).is_err());
         assert_eq!(opts(json!({ "capture": "app" })).capture, Capture::App);
-        let o = opts(json!({ "embedToken": "gdemb_1", "branding": { "name": "Acme", "color": "#fff" }, "masks": [{"x":0,"y":0,"w":1,"h":1}] }));
+        let o = opts(
+            json!({ "embedToken": "gdemb_1", "branding": { "name": "Acme", "color": "#fff" }, "masks": [{"x":0,"y":0,"w":1,"h":1}] }),
+        );
         assert_eq!(o.embed_token.as_deref(), Some("gdemb_1"));
         assert_eq!(o.masks.len(), 1);
     }
@@ -266,23 +341,53 @@ mod tests {
     #[test]
     fn api_base_follows_the_server() {
         assert_eq!(api_base(None), "https://api.gaiadesk.net/v1");
-        assert_eq!(api_base(Some("https://gaiadesk.net/")), "https://api.gaiadesk.net/v1");
-        assert_eq!(api_base(Some("http://127.0.0.1:9000")), "http://127.0.0.1:9000/v1");
+        assert_eq!(
+            api_base(Some("https://gaiadesk.net/")),
+            "https://api.gaiadesk.net/v1"
+        );
+        assert_eq!(
+            api_base(Some("http://127.0.0.1:9000")),
+            "http://127.0.0.1:9000/v1"
+        );
     }
 
     #[test]
     fn session_body_has_mode_customer_and_expiry() {
         let b: Value = serde_json::from_str(&session_body(&opts(json!({ "mode": "cobrowse", "customer": { "name": "Ada", "plan": "pro" }, "expiresIn": 900 })))).unwrap();
-        assert_eq!(b, json!({ "mode": "cobrowse", "customer": { "name": "Ada", "plan": "pro" }, "expires_in": 900 }));
+        assert_eq!(
+            b,
+            json!({ "mode": "cobrowse", "customer": { "name": "Ada", "plan": "pro" }, "expires_in": 900 })
+        );
         assert_eq!(session_body(&HelpOptions::default()), r#"{"mode":"view"}"#);
     }
 
     #[test]
     fn css_rects_to_library_units() {
-        let r = GdRect { x: 10.0, y: 20.0, w: 100.0, h: 30.0 };
+        let r = GdRect {
+            x: 10.0,
+            y: 20.0,
+            w: 100.0,
+            h: 30.0,
+        };
         // macOS, Retina: a 28 pt title bar is 56 physical px above the page.
-        assert_eq!(to_library_rect(&r, (0.0, 56.0), 2.0, "macos"), GdRect { x: 10.0, y: 48.0, w: 100.0, h: 30.0 });
+        assert_eq!(
+            to_library_rect(&r, (0.0, 56.0), 2.0, "macos"),
+            GdRect {
+                x: 10.0,
+                y: 48.0,
+                w: 100.0,
+                h: 30.0
+            }
+        );
         // Windows at 150 %: 8 px border, 31 px title bar.
-        assert_eq!(to_library_rect(&r, (8.0, 31.0), 1.5, "windows"), GdRect { x: 23.0, y: 61.0, w: 150.0, h: 45.0 });
+        assert_eq!(
+            to_library_rect(&r, (8.0, 31.0), 1.5, "windows"),
+            GdRect {
+                x: 23.0,
+                y: 61.0,
+                w: 150.0,
+                h: 45.0
+            }
+        );
     }
 }

@@ -12,3 +12,4 @@ gaiadesk-embed-fetch = { path = "../../../fetch" }
 [dependencies]
 tauri = { version = "2.11", features = [] }
 tauri-plugin-gaiadesk-support = { path = "../../.." }
+serde_json = "1"  # used by tauri::generate_context!

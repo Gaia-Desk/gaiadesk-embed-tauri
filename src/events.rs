@@ -26,7 +26,10 @@ pub struct Status {
 
 impl Status {
     pub fn idle() -> Self {
-        Status { state: "idle".into(), ..Status::default() }
+        Status {
+            state: "idle".into(),
+            ..Status::default()
+        }
     }
 
     /// A session is up (not idle, not ended).
@@ -54,7 +57,10 @@ pub fn map(json: &str, status: &mut Status) -> Option<(&'static str, Value)> {
             status.code = s("code");
             status.session_id = s("session_id");
             status.mode = s("mode");
-            Some(("started", json!({ "code": status.code, "sessionId": status.session_id, "mode": status.mode, "expiresAt": e.get("expires_at").and_then(Value::as_f64) })))
+            Some((
+                "started",
+                json!({ "code": status.code, "sessionId": status.session_id, "mode": status.mode, "expiresAt": e.get("expires_at").and_then(Value::as_f64) }),
+            ))
         }
         "joined" => {
             status.agent = s("agent");
@@ -68,10 +74,21 @@ pub fn map(json: &str, status: &mut Status) -> Option<(&'static str, Value)> {
             status.paused = !e.get("allowed")?.as_bool()?;
             Some(("paused", json!({ "paused": status.paused })))
         }
-        "action" => Some(("action", json!({ "action": s("action")?, "applied": e.get("applied")?.as_bool()?, "reason": s("reason") }))),
-        "error" => Some(("error", json!({ "code": s("code")?, "message": s("message").unwrap_or_default() }))),
+        "action" => Some((
+            "action",
+            json!({ "action": s("action")?, "applied": e.get("applied")?.as_bool()?, "reason": s("reason") }),
+        )),
+        "error" => Some((
+            "error",
+            json!({ "code": s("code")?, "message": s("message").unwrap_or_default() }),
+        )),
         "ended" => {
-            let reason = s("reason").filter(|r| ["stopped", "app_stopped", "disconnected", "expired", "error"].contains(&r.as_str())).unwrap_or_else(|| "error".into());
+            let reason = s("reason")
+                .filter(|r| {
+                    ["stopped", "app_stopped", "disconnected", "expired", "error"]
+                        .contains(&r.as_str())
+                })
+                .unwrap_or_else(|| "error".into());
             status.state = "ended".into();
             status.agent = None;
             status.end_reason = Some(reason.clone());
@@ -105,12 +122,27 @@ mod tests {
             r#"{"type":"ended","reason":"stopped"}"#,
         ]);
         let names: Vec<_> = out.iter().map(|(n, _)| *n).collect();
-        assert_eq!(names, ["state", "started", "state", "joined", "paused", "action", "error", "state", "ended"]);
-        assert_eq!(out[1].1, json!({ "code": "123456789", "sessionId": "ss_1", "mode": "cobrowse", "expiresAt": 1700000000.0 }));
+        assert_eq!(
+            names,
+            [
+                "state", "started", "state", "joined", "paused", "action", "error", "state",
+                "ended"
+            ]
+        );
+        assert_eq!(
+            out[1].1,
+            json!({ "code": "123456789", "sessionId": "ss_1", "mode": "cobrowse", "expiresAt": 1700000000.0 })
+        );
         assert_eq!(out[3].1, json!({ "agent": "ana@acme.com" }));
         assert_eq!(out[4].1, json!({ "paused": true }));
-        assert_eq!(out[5].1, json!({ "action": "click", "applied": false, "reason": "control_paused" }));
-        assert_eq!(out[6].1, json!({ "code": "capture_failed", "message": "no window" }));
+        assert_eq!(
+            out[5].1,
+            json!({ "action": "click", "applied": false, "reason": "control_paused" })
+        );
+        assert_eq!(
+            out[6].1,
+            json!({ "code": "capture_failed", "message": "no window" })
+        );
         assert_eq!(out[8].1, json!({ "reason": "stopped" }));
         assert_eq!(st.state, "ended");
         assert_eq!(st.code.as_deref(), Some("123456789"));
@@ -120,14 +152,30 @@ mod tests {
 
     #[test]
     fn unknown_and_malformed_events_are_skipped_but_ended_is_never_lost() {
-        let (out, st) = run(&[r#"{"type":"notice","code":"x"}"#, "not json", r#"{"type":"joined"}"#, r#"{"type":"ended","reason":"new_reason"}"#]);
-        assert_eq!(out, vec![("joined", json!({ "agent": null })), ("ended", json!({ "reason": "error" }))]);
+        let (out, st) = run(&[
+            r#"{"type":"notice","code":"x"}"#,
+            "not json",
+            r#"{"type":"joined"}"#,
+            r#"{"type":"ended","reason":"new_reason"}"#,
+        ]);
+        assert_eq!(
+            out,
+            vec![
+                ("joined", json!({ "agent": null })),
+                ("ended", json!({ "reason": "error" }))
+            ]
+        );
         assert_eq!(st.state, "ended");
     }
 
     #[test]
     fn left_clears_the_agent_and_control_resumes() {
-        let (_, st) = run(&[r#"{"type":"joined","agent":"a"}"#, r#"{"type":"left"}"#, r#"{"type":"control","allowed":false}"#, r#"{"type":"control","allowed":true}"#]);
+        let (_, st) = run(&[
+            r#"{"type":"joined","agent":"a"}"#,
+            r#"{"type":"left"}"#,
+            r#"{"type":"control","allowed":false}"#,
+            r#"{"type":"control","allowed":true}"#,
+        ]);
         assert!(st.agent.is_none() && !st.paused);
     }
 }

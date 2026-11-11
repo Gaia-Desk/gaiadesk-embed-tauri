@@ -89,7 +89,13 @@ impl Builder {
     pub fn build<R: Runtime>(self) -> TauriPlugin<R, Option<Config>> {
         let over = self.over;
         tauri::plugin::Builder::<R, Option<Config>>::new("gaiadesk-support")
-            .invoke_handler(tauri::generate_handler![commands::start_help, commands::stop, commands::set_paused, commands::set_masks, commands::status])
+            .invoke_handler(tauri::generate_handler![
+                commands::start_help,
+                commands::stop,
+                commands::set_paused,
+                commands::set_masks,
+                commands::status
+            ])
             .setup(move |app, api| {
                 let file = api.config().clone().unwrap_or_default();
                 let config = Config {
@@ -99,7 +105,10 @@ impl Builder {
                     branding: over.branding.or(file.branding),
                     library_path: over.library_path.or(file.library_path),
                 };
-                app.manage(Support { config, session: Arc::new(Session::default()) });
+                app.manage(Support {
+                    config,
+                    session: Arc::new(Session::default()),
+                });
                 Ok(())
             })
             .on_event(|app, e| {
@@ -131,7 +140,10 @@ pub(crate) struct Session {
 
 impl Default for Session {
     fn default() -> Self {
-        Session { handle: Mutex::new(None), status: Mutex::new(Status::idle()) }
+        Session {
+            handle: Mutex::new(None),
+            status: Mutex::new(Status::idle()),
+        }
     }
 }
 
@@ -142,14 +154,25 @@ pub(crate) struct Support {
 
 impl Support {
     /// The library, loaded on first use.
-    pub(crate) fn lib<R: Runtime>(&self, app: &tauri::AppHandle<R>) -> Result<&'static ffi::Lib, Error> {
+    pub(crate) fn lib<R: Runtime>(
+        &self,
+        app: &tauri::AppHandle<R>,
+    ) -> Result<&'static ffi::Lib, Error> {
         if let Some(l) = ffi::loaded() {
             return Ok(l);
         }
         let resource_dir = app.path().resource_dir().ok();
-        let exe_dir = std::env::current_exe().ok().and_then(|e| e.parent().map(PathBuf::from));
+        let exe_dir = std::env::current_exe()
+            .ok()
+            .and_then(|e| e.parent().map(PathBuf::from));
         let env = std::env::var_os("GAIADESK_EMBED_LIBRARY").map(PathBuf::from);
-        let c = ffi::candidates(std::env::consts::OS, env, self.config.library_path.clone(), resource_dir.as_deref(), exe_dir.as_deref());
+        let c = ffi::candidates(
+            std::env::consts::OS,
+            env,
+            self.config.library_path.clone(),
+            resource_dir.as_deref(),
+            exe_dir.as_deref(),
+        );
         ffi::Lib::load_first(&c)
     }
 }

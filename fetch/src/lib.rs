@@ -42,9 +42,18 @@ pub const VERSION: &str = "0.1.0";
 // BEGIN PINNED HASHES (the same as gaiadesk-embed-cpp's cmake/FetchGaiaDeskEmbed.cmake)
 /// `(archive, sha256)` for every published archive of [`VERSION`].
 pub const PINNED: &[(&str, &str)] = &[
-    ("gaiadesk_embed-macos-universal.tar.gz", "7126112534bedc70e033813560a80224f8f78f369dd8cf80e09bfbd8f6d5a686"),
-    ("gaiadesk_embed-linux-x64.tar.gz", "a7fcb96a04059a04210f37cf875f472a23ae06ed037572304dd3028edd93433b"),
-    ("gaiadesk_embed-win-x64.zip", "283c89743251b78f260767fa4341acf431979db2154fcd600585eb3d79d2de2e"),
+    (
+        "gaiadesk_embed-macos-universal.tar.gz",
+        "7126112534bedc70e033813560a80224f8f78f369dd8cf80e09bfbd8f6d5a686",
+    ),
+    (
+        "gaiadesk_embed-linux-x64.tar.gz",
+        "a7fcb96a04059a04210f37cf875f472a23ae06ed037572304dd3028edd93433b",
+    ),
+    (
+        "gaiadesk_embed-win-x64.zip",
+        "283c89743251b78f260767fa4341acf431979db2154fcd600585eb3d79d2de2e",
+    ),
 ];
 // END PINNED HASHES
 
@@ -71,7 +80,11 @@ pub fn asset_for(os: &str, arch: &str) -> Option<Asset> {
             inner_path: "lib/libgaiadesk_embed.dylib",
             file_name: "libgaiadesk_embed.dylib",
         }),
-        ("windows", "x86_64") => Some(Asset { archive: "gaiadesk_embed-win-x64.zip", inner_path: "bin/gaiadesk_embed.dll", file_name: "gaiadesk_embed.dll" }),
+        ("windows", "x86_64") => Some(Asset {
+            archive: "gaiadesk_embed-win-x64.zip",
+            inner_path: "bin/gaiadesk_embed.dll",
+            file_name: "gaiadesk_embed.dll",
+        }),
         ("linux", "x86_64") => Some(Asset {
             archive: "gaiadesk_embed-linux-x64.tar.gz",
             inner_path: "lib/libgaiadesk_embed.so",
@@ -107,7 +120,10 @@ pub fn verify(path: &Path, expected: &str) -> Result<(), String> {
     if got.eq_ignore_ascii_case(expected) {
         Ok(())
     } else {
-        Err(format!("{} has SHA-256 {got}, expected {expected}: refusing it", path.display()))
+        Err(format!(
+            "{} has SHA-256 {got}, expected {expected}: refusing it",
+            path.display()
+        ))
     }
 }
 
@@ -127,7 +143,10 @@ pub fn fetch(dir: impl AsRef<Path>) -> Result<Option<PathBuf>, String> {
     let dir = dir.as_ref();
     let lib = fetch_for(asset, dir)?;
     // tauri dev runs target/<profile>/<app>: OUT_DIR is target/<profile>/build/<pkg>/out.
-    if let Some(profile_dir) = std::env::var_os("OUT_DIR").map(PathBuf::from).and_then(|o| o.ancestors().nth(3).map(Path::to_path_buf)) {
+    if let Some(profile_dir) = std::env::var_os("OUT_DIR")
+        .map(PathBuf::from)
+        .and_then(|o| o.ancestors().nth(3).map(Path::to_path_buf))
+    {
         copy_into(dir, &profile_dir.join("gaiadesk"), asset.file_name)?;
     }
     println!("cargo:rerun-if-changed={}", lib.display());
@@ -137,7 +156,8 @@ pub fn fetch(dir: impl AsRef<Path>) -> Result<Option<PathBuf>, String> {
 /// Place `asset` in `dir` (downloading, verifying and unpacking it unless
 /// `dir` already has the pinned version). Returns the library's path.
 pub fn fetch_for(asset: Asset, dir: &Path) -> Result<PathBuf, String> {
-    let sha = pinned_sha256(asset.archive).ok_or_else(|| format!("no pinned SHA-256 for {}", asset.archive))?;
+    let sha = pinned_sha256(asset.archive)
+        .ok_or_else(|| format!("no pinned SHA-256 for {}", asset.archive))?;
     let lib = dir.join(asset.file_name);
     let stamp = dir.join(".sha256");
     if lib.is_file() && fs::read_to_string(&stamp).is_ok_and(|s| s.trim() == sha) {
@@ -148,8 +168,10 @@ pub fn fetch_for(asset: Asset, dir: &Path) -> Result<PathBuf, String> {
         Some(r) => PathBuf::from(r),
         None => download_and_unpack(asset, sha, dir)?,
     };
-    fs::copy(root.join(asset.inner_path), &lib).map_err(|e| format!("copying {}: {e}", asset.inner_path))?;
-    fs::copy(root.join("LICENSE-BINARY"), dir.join("LICENSE-BINARY")).map_err(|e| format!("copying LICENSE-BINARY: {e}"))?;
+    fs::copy(root.join(asset.inner_path), &lib)
+        .map_err(|e| format!("copying {}: {e}", asset.inner_path))?;
+    fs::copy(root.join("LICENSE-BINARY"), dir.join("LICENSE-BINARY"))
+        .map_err(|e| format!("copying LICENSE-BINARY: {e}"))?;
     if std::env::var_os("GAIADESK_EMBED_ROOT").is_none() {
         let _ = fs::remove_dir_all(&root);
         fs::write(&stamp, sha).map_err(|e| format!("writing {}: {e}", stamp.display()))?;
@@ -164,14 +186,27 @@ fn download_and_unpack(asset: Asset, sha: &str, dir: &Path) -> Result<PathBuf, S
     let _ = fs::remove_dir_all(&work);
     fs::create_dir_all(&work).map_err(|e| format!("creating {}: {e}", work.display()))?;
     let archive = work.join(asset.archive);
-    run(Command::new("curl").args(["-fsSL", "--retry", "3", "-o"]).arg(&archive).arg(&url), &format!("downloading {url}"))?;
+    run(
+        Command::new("curl")
+            .args(["-fsSL", "--retry", "3", "-o"])
+            .arg(&archive)
+            .arg(&url),
+        &format!("downloading {url}"),
+    )?;
     if let Err(e) = verify(&archive, sha) {
         let _ = fs::remove_dir_all(&work);
         return Err(e);
     }
     let root = work.join("root");
     fs::create_dir_all(&root).map_err(|e| e.to_string())?;
-    run(Command::new("tar").arg("-xf").arg(&archive).arg("-C").arg(&root), &format!("unpacking {}", asset.archive))?;
+    run(
+        Command::new("tar")
+            .arg("-xf")
+            .arg(&archive)
+            .arg("-C")
+            .arg(&root),
+        &format!("unpacking {}", asset.archive),
+    )?;
     Ok(root)
 }
 
@@ -186,7 +221,8 @@ fn run(cmd: &mut Command, what: &str) -> Result<(), String> {
 fn copy_into(from: &Path, to: &Path, file_name: &str) -> Result<(), String> {
     fs::create_dir_all(to).map_err(|e| format!("creating {}: {e}", to.display()))?;
     for f in [file_name, "LICENSE-BINARY"] {
-        fs::copy(from.join(f), to.join(f)).map_err(|e| format!("copying {f} to {}: {e}", to.display()))?;
+        fs::copy(from.join(f), to.join(f))
+            .map_err(|e| format!("copying {f} to {}: {e}", to.display()))?;
     }
     Ok(())
 }
@@ -197,12 +233,23 @@ mod tests {
 
     #[test]
     fn every_supported_target_has_a_pinned_hash() {
-        for (os, arch) in [("macos", "aarch64"), ("macos", "x86_64"), ("windows", "x86_64"), ("linux", "x86_64")] {
+        for (os, arch) in [
+            ("macos", "aarch64"),
+            ("macos", "x86_64"),
+            ("windows", "x86_64"),
+            ("linux", "x86_64"),
+        ] {
             let a = asset_for(os, arch).unwrap();
             let h = pinned_sha256(a.archive).unwrap();
             assert_eq!(h.len(), 64);
-            assert!(h.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()));
-            assert!(h.bytes().any(|b| b != b'0'), "placeholder hash for {}", a.archive);
+            assert!(h
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()));
+            assert!(
+                h.bytes().any(|b| b != b'0'),
+                "placeholder hash for {}",
+                a.archive
+            );
         }
         assert_eq!(PINNED.len(), 3);
     }
@@ -217,7 +264,10 @@ mod tests {
     #[test]
     fn pins_match_the_cpp_repository() {
         // The hashes gaiadesk-embed-cpp's FetchGaiaDeskEmbed.cmake pins for 0.1.0.
-        assert_eq!(pinned_sha256("gaiadesk_embed-macos-universal.tar.gz"), Some("7126112534bedc70e033813560a80224f8f78f369dd8cf80e09bfbd8f6d5a686"));
+        assert_eq!(
+            pinned_sha256("gaiadesk_embed-macos-universal.tar.gz"),
+            Some("7126112534bedc70e033813560a80224f8f78f369dd8cf80e09bfbd8f6d5a686")
+        );
         assert_eq!(VERSION, "0.1.0");
     }
 
