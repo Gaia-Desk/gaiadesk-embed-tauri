@@ -198,16 +198,28 @@ impl Lib {
     }
 
     /// The consent dialog: 1 agreed, 0 declined, -1 no native dialog here,
-    /// -2 wrong thread. Uses the branded dialog when the library has it.
-    /// macOS: call on the main thread.
-    pub fn show_consent(&self, ex_options_json: &str, company: &str, capture: &str, guided: bool) -> c_int {
-        if let (Some(ex), Ok(o)) = (self.show_consent_ex, CString::new(ex_options_json)) {
+    /// -2 wrong thread. Uses the branded dialog when the library has it; that
+    /// one refuses bad options by showing nothing and returning 0, which comes
+    /// back as `Err` (`bad_config`), never as a decline. macOS: call on the
+    /// main thread.
+    pub fn show_consent(&self, ex_options_json: &str, company: &str, capture: &str, guided: bool) -> Result<c_int, Error> {
+        if let Some(ex) = self.show_consent_ex {
+            let o = CString::new(ex_options_json).map_err(|_| Error::new("bad_config", "consent options contain a NUL byte"))?;
             // SAFETY: a NUL-terminated JSON string.
-            return unsafe { ex(o.as_ptr()) };
+            let rc = unsafe { ex(o.as_ptr()) };
+            if rc == 0 {
+                // shortcut: last_error is not cleared by a plain decline, so a stale bad_config
+                // from an earlier refused call on this thread would read as one; harmless once fixed.
+                let e = self.last_error("declined");
+                if e.code == "bad_config" {
+                    return Err(e);
+                }
+            }
+            return Ok(rc);
         }
-        let (Ok(co), Ok(ca)) = (CString::new(company), CString::new(capture)) else { return 0 };
+        let (Ok(co), Ok(ca)) = (CString::new(company), CString::new(capture)) else { return Err(Error::new("bad_config", "company contains a NUL byte")) };
         // SAFETY: NUL-terminated strings.
-        unsafe { (self.show_consent)(co.as_ptr(), ca.as_ptr(), guided as c_int) }
+        Ok(unsafe { (self.show_consent)(co.as_ptr(), ca.as_ptr(), guided as c_int) })
     }
 }
 

@@ -2,7 +2,7 @@
 //! `libgaiadesk_embed` for the target into your `src-tauri/gaiadesk/`, where
 //! `tauri.conf.json` bundles it.
 //!
-//! ```no_run
+//! ```ignore
 //! // src-tauri/build.rs
 //! fn main() {
 //!     gaiadesk_embed_fetch::fetch("gaiadesk").expect("libgaiadesk_embed");

@@ -56,7 +56,11 @@ fn start_claimed<R: Runtime>(app: &AppHandle<R>, sup: &Support, lib: &'static Li
             let _ = tx.send(lib.show_consent(&ex, &company, capture, guided));
         })
         .map_err(|e| Error::new("wrong_thread", e.to_string()))?;
-        match rx.recv().unwrap_or(0) {
+        let answer = rx.recv().unwrap_or(Ok(0)).inspect_err(|e| {
+            // Our options were refused: a bug to report, not the user's "no".
+            let _ = app.emit(&format!("{}error", events::PREFIX), e);
+        })?;
+        match answer {
             1 => {}
             -1 => return Err(Error::new("no_native_dialog", "this platform has no native consent dialog: ask your user yourself, then pass consentGranted: true")),
             -2 => return Err(Error::new("wrong_thread", "the consent dialog could not be shown on the main thread")),

@@ -15,6 +15,8 @@ pub enum Capture {
     /// This app's window (the default).
     #[default]
     Window,
+    /// Every window of this app (macOS; elsewhere the focused one, followed).
+    App,
     /// The whole display the app's window is on (opt-in).
     Screen,
 }
@@ -23,6 +25,7 @@ impl Capture {
     pub fn as_str(self) -> &'static str {
         match self {
             Capture::Window => "window",
+            Capture::App => "app",
             Capture::Screen => "screen",
         }
     }
@@ -237,9 +240,10 @@ mod tests {
 
     #[test]
     fn js_options_are_strict() {
-        assert!(serde_json::from_value::<HelpOptions>(json!({ "capture": "app" })).is_err());
+        assert!(serde_json::from_value::<HelpOptions>(json!({ "capture": "desktop" })).is_err());
         assert!(serde_json::from_value::<HelpOptions>(json!({ "mode": "control" })).is_err());
         assert!(serde_json::from_value::<HelpOptions>(json!({ "embedTokn": "x" })).is_err());
+        assert_eq!(opts(json!({ "capture": "app" })).capture, Capture::App);
         let o = opts(json!({ "embedToken": "gdemb_1", "branding": { "name": "Acme", "color": "#fff" }, "masks": [{"x":0,"y":0,"w":1,"h":1}] }));
         assert_eq!(o.embed_token.as_deref(), Some("gdemb_1"));
         assert_eq!(o.masks.len(), 1);

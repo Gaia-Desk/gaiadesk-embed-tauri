@@ -12,8 +12,8 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 /** What the support team may do (asked for when the plugin creates the session). */
 export type SupportMode = 'view' | 'cobrowse';
-/** What is shared: this app's window (default), or the display it is on. */
-export type Capture = 'window' | 'screen';
+/** What is shared: this app's window (default), every window of this app, or the display it is on. */
+export type Capture = 'window' | 'app' | 'screen';
 /** Who the customer is: at most 16 short fields. Shown to your own agents only. */
 export type Customer = Record<string, string | number | boolean | null>;
 

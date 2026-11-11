@@ -167,7 +167,7 @@ Never ship the secret key in the app: the embed token is all it needs.
 | `mode` | `view` (default) or `cobrowse` (publishable-key flow; your backend decides otherwise). |
 | `expiresIn` | Seconds, 60 to 3600 (publishable-key flow). |
 | `guided` | Allow guided input (default `false`). Needs a `cobrowse` session too. |
-| `capture` | `window` (default): this app's window. `screen`: the display it is on (opt-in). |
+| `capture` | `window` (default): this app's window. `app`: every window of this app (macOS; elsewhere the focused one, followed). `screen`: the display it is on (opt-in). |
 | `branding` | `{ name, color, logo }`: see below. Merged over the config's `branding`. |
 | `masks` | Rects in CSS pixels, or a selector (default `[data-gaiadesk-mask]`). |
 | `fps` | 1 to 30 (default 15). |
@@ -222,7 +222,8 @@ paused), `setMasks`, `status` (`{state, code, sessionId, mode, agent, paused, en
 Refusals reject with a `SupportError` whose `code` is the library's (`consent_required`,
 `bad_token`, `bad_config`, `bad_rects`, …) or the plugin's: `declined`, `busy`, `no_session`,
 `library_missing`, `create_failed` or the server's reason (`too_many_open_sessions`, …),
-`bad_logo`, `bad_color`.
+`bad_logo`, `bad_color`. A branding value the library's dialog refuses rejects with `bad_config`
+(and an `error` event), never as `declined`.
 
 Quitting the app ends the session (`app_stopped`).
 

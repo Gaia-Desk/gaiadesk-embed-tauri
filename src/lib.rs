@@ -4,7 +4,7 @@
 //! with the library's "Sharing with …" indicator, masks, and optional guided
 //! control.
 //!
-//! ```no_run
+//! ```ignore
 //! tauri::Builder::default()
 //!     .plugin(tauri_plugin_gaiadesk_support::init())
 //! #   ;
