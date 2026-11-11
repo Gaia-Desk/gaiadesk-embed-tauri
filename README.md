@@ -257,7 +257,7 @@ At run time, the first that exists of: `GAIADESK_EMBED_LIBRARY`, the config's `l
 (where `gaiadesk_embed_fetch::fetch` also copies it, so `tauri dev` works).
 
 At build time `fetch` downloads `gaiadesk_embed-<platform>` from the
-[gaiadesk-embed-cpp release](https://github.com/Gaia-Desk/gaiadesk-embed-cpp/releases/tag/v0.1.0)
+[gaiadesk-embed-cpp release](https://github.com/Gaia-Desk/gaiadesk-embed-cpp/releases/tag/v0.2.0)
 and refuses it unless its SHA-256 matches the hash pinned in `fetch/src/lib.rs`. Offline or from a
 mirror: `GAIADESK_EMBED_ROOT=<unpacked archive>` or `GAIADESK_EMBED_BASE_URL=<url>` (still checked).
 It needs `curl` and `tar`, which macOS, Linux and Windows 10+ have.

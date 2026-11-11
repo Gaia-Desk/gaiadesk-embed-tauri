@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.1.0
+## 0.2.0
+
+The first release; versioned with `libgaiadesk_embed` 0.2.0, which it downloads.
 
 - `tauri-plugin-gaiadesk-support`: a Tauri v2 plugin over `libgaiadesk_embed`, loaded at run time
   (no link-time dependency): commands `start_help`, `stop`, `set_paused`, `set_masks`, `status`;
@@ -13,5 +15,5 @@
 - Masks in CSS pixels or by selector (`[data-gaiadesk-mask]` by default), followed as they move.
 - `@gaiadesk/tauri-plugin-support`: the typed TypeScript API and `mountHelpButton()`.
 - `gaiadesk-embed-fetch`: a build-script helper that downloads the library for the target from the
-  gaiadesk-embed-cpp 0.1.0 release, checks it against pinned SHA-256s, and places it for bundling.
+  gaiadesk-embed-cpp 0.2.0 release, checks it against pinned SHA-256s, and places it for bundling.
 - Example: `examples/tauri-app` ("Acme Desk").

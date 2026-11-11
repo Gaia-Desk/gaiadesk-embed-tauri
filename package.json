@@ -1,6 +1,6 @@
 {
   "name": "@gaiadesk/tauri-plugin-support",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A \"Get help\" button for your Tauri app: your customer shares your app's window with your support team on GaiaDesk, who can see it and, if you allow it, guide it. The JS side of tauri-plugin-gaiadesk-support.",
   "license": "MIT",
   "type": "module",

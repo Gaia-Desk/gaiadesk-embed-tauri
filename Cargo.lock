@@ -947,7 +947,7 @@ dependencies = [
 
 [[package]]
 name = "gaiadesk-embed-fetch"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "sha2",
 ]
@@ -3403,7 +3403,7 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-gaiadesk-support"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "gaiadesk-embed-fetch",
