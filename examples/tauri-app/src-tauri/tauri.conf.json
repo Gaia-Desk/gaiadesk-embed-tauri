@@ -9,19 +9,33 @@
     "beforeBuildCommand": "npm run build"
   },
   "app": {
-    "windows": [{ "title": "Acme Desk", "width": 900, "height": 640 }],
-    "security": { "csp": "default-src 'self'; img-src 'self' data:; style-src 'self'" }
+    "windows": [
+      {
+        "title": "Acme Desk",
+        "width": 900,
+        "height": 640
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self'"
+    }
   },
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": ["icons/icon.png"]
+    "icon": [
+      "icons/icon.png",
+      "icons/icon.ico"
+    ]
   },
   "plugins": {
     "gaiadesk-support": {
       "publishableKey": "ak_your_publishable_key",
       "company": "Acme",
-      "branding": { "color": "#0f766e", "logo": "icons/icon.png" }
+      "branding": {
+        "color": "#0f766e",
+        "logo": "icons/icon.png"
+      }
     }
   }
 }
