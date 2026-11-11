@@ -1,0 +1,14 @@
+[package]
+name = "acme-desk"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Example: a Tauri v2 app with a GaiaDesk \"Get help\" button"
+
+[build-dependencies]
+tauri-build = { version = "2.6", features = [] }
+gaiadesk-embed-fetch = { path = "../../../fetch" }
+
+[dependencies]
+tauri = { version = "2.11", features = [] }
+tauri-plugin-gaiadesk-support = { path = "../../.." }

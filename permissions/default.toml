@@ -1,0 +1,5 @@
+"$schema" = "schemas/schema.json"
+
+[default]
+description = "Lets the app's pages start, watch, pause, mask and stop a GaiaDesk support session: start-help, stop, set-paused, set-masks and status."
+permissions = ["allow-start-help", "allow-stop", "allow-set-paused", "allow-set-masks", "allow-status"]

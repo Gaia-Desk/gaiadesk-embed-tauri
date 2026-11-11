@@ -1,0 +1,13 @@
+[package]
+name = "gaiadesk-embed-fetch"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.77.2"
+license = "MIT"
+description = "Build-time helper for tauri-plugin-gaiadesk-support: downloads the prebuilt libgaiadesk_embed for the target, checks it against pinned SHA-256s and puts it where Tauri bundles it."
+repository = "https://github.com/Gaia-Desk/gaiadesk-embed-tauri"
+keywords = ["gaiadesk", "tauri", "remote-support", "build"]
+categories = ["development-tools::build-utils"]
+
+[dependencies]
+sha2 = "0.10"

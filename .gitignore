@@ -1,0 +1,9 @@
+/target/
+/dist-js/
+node_modules/
+.DS_Store
+.vscode/
+.idea/
+/examples/tauri-app/src-tauri/gaiadesk/
+/examples/tauri-app/src-tauri/gen/
+/examples/tauri-app/ui/main.js

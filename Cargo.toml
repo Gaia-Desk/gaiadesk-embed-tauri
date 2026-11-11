@@ -1,0 +1,38 @@
+[package]
+name = "tauri-plugin-gaiadesk-support"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.77.2"
+license = "MIT"
+description = "In-app remote support for Tauri apps: a \"Get help\" button that shares your app's window with your support team in the GaiaDesk console, with consent, an indicator, masks and optional guided control."
+repository = "https://github.com/Gaia-Desk/gaiadesk-embed-tauri"
+homepage = "https://gaiadesk.net/docs/embedding-gaiadesk"
+readme = "README.md"
+keywords = ["tauri-plugin", "remote-support", "screen-sharing", "cobrowse", "gaiadesk"]
+categories = ["gui"]
+links = "tauri-plugin-gaiadesk-support"
+exclude = ["/examples", "/guest-js", "/dist-js", "/node_modules", "/target", "/docs", "/.github"]
+
+[dependencies]
+tauri = { version = "2.11", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+libloading = "0.8"
+base64 = "0.22"
+# Blocking HTTP for the publishable-key flow and logo URLs: rustls (ring) with the OS's own
+# certificate verifier, so no bundled root store.
+ureq = { version = "3", default-features = false, features = ["rustls-no-provider", "_ring", "platform-verifier"] }
+
+[dev-dependencies]
+gaiadesk-embed-fetch = { path = "fetch", version = "0.1.0" }
+
+[build-dependencies]
+tauri-plugin = { version = "2.7", features = ["build"] }
+
+[workspace]
+members = [".", "fetch", "examples/tauri-app/src-tauri"]
+resolver = "2"
+
+# Small, disk-friendly dev builds (this workspace only; never affects apps using the plugin).
+[profile.dev]
+debug = 0

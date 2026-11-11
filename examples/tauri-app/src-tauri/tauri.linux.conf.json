@@ -1,0 +1,9 @@
+{
+  "bundle": {
+    "resources": {
+      "gaiadesk/libgaiadesk_embed.so": "gaiadesk/libgaiadesk_embed.so",
+      "gaiadesk/LICENSE-BINARY": "gaiadesk/LICENSE-BINARY",
+      "icons/icon.png": "icons/icon.png"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+:root { font-family: system-ui, sans-serif; color: #1f2937; background: #f8fafc; }
+header { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-bottom: 1px solid #e2e8f0; }
+h1 { font-size: 18px; margin: 0; }
+main { padding: 20px; }
+button { font: inherit; padding: 6px 14px; border-radius: 6px; border: 1px solid #0f766e; background: #0f766e; color: #fff; cursor: pointer; }
+button:disabled { opacity: 0.6; }
+.card { display: inline-block; padding: 16px 20px; margin-bottom: 12px; border-radius: 8px; background: #b91c1c; color: #fff; font-family: ui-monospace, monospace; }

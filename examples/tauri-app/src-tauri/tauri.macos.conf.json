@@ -1,0 +1,6 @@
+{
+  "bundle": {
+    "macOS": { "frameworks": ["gaiadesk/libgaiadesk_embed.dylib"] },
+    "resources": { "gaiadesk/LICENSE-BINARY": "gaiadesk/LICENSE-BINARY", "icons/icon.png": "icons/icon.png" }
+  }
+}

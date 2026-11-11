@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Acme Desk",
+  "version": "0.1.0",
+  "identifier": "com.acme.desk",
+  "build": {
+    "frontendDist": "../ui",
+    "beforeDevCommand": "npm run build",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [{ "title": "Acme Desk", "width": 900, "height": 640 }],
+    "security": { "csp": "default-src 'self'; img-src 'self' data:; style-src 'self'" }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["icons/icon.png"]
+  },
+  "plugins": {
+    "gaiadesk-support": {
+      "publishableKey": "ak_your_publishable_key",
+      "company": "Acme",
+      "branding": { "color": "#0f766e", "logo": "icons/icon.png" }
+    }
+  }
+}

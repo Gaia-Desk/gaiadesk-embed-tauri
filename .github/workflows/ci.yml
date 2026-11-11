@@ -1,0 +1,58 @@
+name: ci
+
+# The live tests and the example's build script download this release of
+# libgaiadesk_embed from gaiadesk-embed-cpp (checked against the SHA-256s pinned
+# in fetch/src/lib.rs), so they need that release to exist.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-latest, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Linux dependencies (Tauri's webview; the library's runtime libraries)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libgbm1 libwayland-client0 libxcb1
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Check (plugin, fetch helper, example app)
+        run: cargo check --workspace --all-targets
+      # Unit tests, plus the live tests against the real library (refusals only:
+      # no session, no network beyond the download).
+      - name: Test
+        run: cargo test --workspace
+
+  guest-js:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run build
+      - name: Package contents
+        run: npm pack --dry-run
+      - name: Example frontend (type-check and bundle)
+        working-directory: examples/tauri-app
+        run: |
+          npm ci
+          npm run build
