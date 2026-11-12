@@ -84,6 +84,11 @@ pub fn map(json: &str, status: &mut Status) -> Option<(&'static str, Value)> {
             "action",
             json!({ "action": s("action")?, "applied": e.get("applied")?.as_bool()?, "reason": s("reason") }),
         )),
+        // The customer dragged the indicator: kept by the plugin, not emitted.
+        "indicator_moved" => Some((
+            "indicator_moved",
+            json!({ "x": e.get("x")?.as_f64()?, "y": e.get("y")?.as_f64()? }),
+        )),
         "error" => Some((
             "error",
             json!({ "code": s("code")?, "message": s("message").unwrap_or_default() }),
@@ -91,7 +96,7 @@ pub fn map(json: &str, status: &mut Status) -> Option<(&'static str, Value)> {
         "ended" => {
             let reason = s("reason")
                 .filter(|r| {
-                    ["stopped", "app_stopped", "disconnected", "expired", "error"]
+                    ["stopped", "app_stopped", "customer_cancelled", "disconnected", "expired", "error"]
                         .contains(&r.as_str())
                 })
                 .unwrap_or_else(|| "error".into());
@@ -194,5 +199,17 @@ mod tests {
             r#"{"type":"control","allowed":true}"#,
         ]);
         assert!(st.agent.is_none() && !st.paused);
+    }
+
+    #[test]
+    fn a_cancel_while_waiting_is_its_own_reason_and_a_drag_is_kept_not_emitted() {
+        let (out, st) = run(&[
+            r#"{"type":"state","state":"waiting"}"#,
+            r#"{"type":"indicator_moved","x":120.5,"y":-30}"#,
+            r#"{"type":"ended","reason":"customer_cancelled"}"#,
+        ]);
+        assert_eq!(out[1], ("indicator_moved", json!({ "x": 120.5, "y": -30.0 })));
+        assert_eq!(out[2], ("ended", json!({ "reason": "customer_cancelled" })));
+        assert_eq!(st.end_reason.as_deref(), Some("customer_cancelled"));
     }
 }

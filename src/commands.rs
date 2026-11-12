@@ -14,8 +14,8 @@ use crate::events::{self, Status};
 use crate::ffi::{GdEmbedCallbacks, GdRect, Lib};
 use crate::followup::{warn, Creds};
 use crate::http::Created;
-use crate::options::{self, Brand, CssRect, HelpOptions};
-use crate::{branding, http, keys, lock, permission, requests, Handle, Session, Support};
+use crate::options::{self, Brand, CssRect, HelpOptions, Native};
+use crate::{branding, http, indicator, keys, lock, permission, requests, Handle, Session, Support};
 
 /// Ask, create the session if needed, start. Resolves once sharing has
 /// started (events follow); rejects with `{code, message}`.
@@ -79,9 +79,16 @@ fn start_claimed<R: Runtime>(
 ) -> Result<Status> {
     let brand = brand_of(app, sup, o)?;
     let masks = library_rects(window, &o.masks);
+    // The calling window (the dialog attaches to it, the indicator keeps
+    // clear of it): only a library that knows the keys gets them.
+    let native = lib.supports_native().then(|| native_window(window)).flatten();
+    let native_lib = lib.supports_native();
 
     if !o.consent_granted {
-        let ex = options::consent_options(o, &brand);
+        let mut ex = options::consent_options(o, &brand);
+        if native_lib {
+            ex = options::with_native(&ex, &Native { parent_window: native, masked: Some(o.masking), ..Native::default() });
+        }
         let (company, capture, guided) = (brand.company.clone(), o.capture.as_str(), o.guided);
         let (tx, rx) = std::sync::mpsc::channel();
         // A modal dialog: on macOS it must be the main thread.
@@ -143,7 +150,7 @@ fn start_claimed<R: Runtime>(
         ended_at: None,
         rated: false,
     });
-    let config = options::start_config(
+    let mut config = options::start_config(
         &created.token,
         sup.config.server.as_deref(),
         o,
@@ -151,6 +158,15 @@ fn start_claimed<R: Runtime>(
         &masks,
         lib.supports_branding(),
     );
+    if native_lib {
+        let n = Native {
+            parent_window: native,
+            indicator_position: o.indicator_position,
+            indicator_origin: indicator::saved(app),
+            ..Native::default()
+        };
+        config = options::with_native(&config, &n);
+    }
     let ctx = Box::into_raw(Box::new(Ctx {
         app: app.clone(),
         session: sup.session.clone(),
@@ -216,6 +232,19 @@ fn brand_of<R: Runtime>(app: &AppHandle<R>, sup: &Support, o: &HelpOptions) -> R
     })
 }
 
+/// The calling window's native handle: `NSWindow*` on macOS, `HWND` on Windows.
+fn native_window<R: Runtime>(w: &WebviewWindow<R>) -> Option<u64> {
+    #[cfg(target_os = "macos")]
+    return w.ns_window().ok().map(|p| p as usize as u64);
+    #[cfg(windows)]
+    return w.hwnd().ok().map(|h| h.0 as usize as u64);
+    #[cfg(not(any(target_os = "macos", windows)))]
+    {
+        let _ = w;
+        None
+    }
+}
+
 /// CSS-pixel rects of the calling page → the library's units.
 fn library_rects<R: Runtime>(w: &WebviewWindow<R>, rects: &[CssRect]) -> Vec<GdRect> {
     let scale = w.scale_factor().unwrap_or(1.0);
@@ -241,6 +270,11 @@ unsafe extern "C" fn on_event<R: Runtime>(user_data: *mut c_void, event_json: *c
         let ctx = unsafe { &*(user_data as *const Ctx<R>) };
         let json = unsafe { CStr::from_ptr(event_json) }.to_string_lossy();
         let mapped = events::map(&json, &mut lock(&ctx.session.status));
+        if let Some(("indicator_moved", p)) = &mapped {
+            // Kept for this app's next session; not an app-facing event.
+            indicator::save(&ctx.app, p);
+            return;
+        }
         if let Some((name, mut payload)) = mapped {
             if name == "ended" {
                 payload["canRate"] = json!(ended(&ctx.app));

@@ -29,6 +29,7 @@ mod events;
 pub mod ffi;
 mod followup;
 mod http;
+mod indicator;
 pub mod keys;
 pub mod options;
 mod permission;
@@ -36,7 +37,7 @@ mod requests;
 
 pub use error::Error;
 pub use events::Status;
-pub use options::{Branding, Capture, HelpOptions, Mode};
+pub use options::{Branding, Capture, HelpOptions, IndicatorPosition, Mode};
 
 /// The plugin's section of `tauri.conf.json` (`plugins."gaiadesk-support"`).
 #[derive(Debug, Clone, Default, Deserialize)]

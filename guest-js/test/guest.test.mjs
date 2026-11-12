@@ -68,3 +68,21 @@ test('the in-page dialog answers with the button pressed', async () => {
 test('getInfo never throws: outside Tauri (or without the plugin) it is unavailable', async () => {
   assert.deepEqual(await g.getInfo(), { available: false });
 });
+
+test('startHelp tells the plugin whether masking is on, and the indicator corner', async () => {
+  const calls = [];
+  window.__TAURI_INTERNALS__ = {
+    invoke: async (cmd, args) => (calls.push([cmd, args]), cmd.endsWith('start_help') ? { state: 'starting' } : null),
+    transformCallback: () => 0,
+  };
+  try {
+    await g.startHelp({ masks: [], indicatorPosition: 'bottom-left' });
+    await g.startHelp({ masks: [{ x: 0, y: 0, w: 1, h: 1 }] });
+  } finally {
+    delete window.__TAURI_INTERNALS__;
+  }
+  const starts = calls.filter(([c]) => c.endsWith('start_help')).map(([, a]) => a.options);
+  assert.equal(starts.length, 2);
+  assert.deepEqual([starts[0].masking, starts[0].indicatorPosition], [false, 'bottom-left']);
+  assert.equal(starts[1].masking, true);
+});

@@ -15,12 +15,16 @@ only**, while it is in front.
   (`@gaiadesk/tauri-plugin-support`), over GaiaDesk's prebuilt native library `libgaiadesk_embed`.
 - **One click**: with a publishable key in your config, `startHelp()` asks, creates the session and
   starts. Or hand it an embed token from your own backend.
-- **Consent first**: the library's native dialog, in your colour and logo (yours on Linux). Nothing
-  is shared until your user agrees.
+- **Consent first**: the library's native dialog, attached to the window that asked (a sheet on
+  macOS, an owned window on Windows), light or dark with the system, in your colour and logo, with a
+  checklist of exactly what is shared — or [your own dialog](#your-own-consent-dialog). Nothing is
+  shared until your user agrees.
 - Shares **your app's own window** by default. Other apps and the desktop are never in the picture
   unless you opt into `screen`.
-- A visible **"Sharing with Acme · Stop sharing"** indicator, drawn by the library, for as long as
-  anything is shared.
+- A visible **"Sharing with Acme"** indicator, drawn by the library, for as long as anything is
+  shared: always on top, draggable (its place is remembered for your app), **Cancel** while your
+  customer waits (the request leaves your team's queue at once), **Stop sharing** once an agent
+  joined. It can never be hidden.
 - **Masks**: password, card and one-time-code fields are masked by default; mark any other element
   `data-gaiadesk-mask` and it is painted black before a frame is encoded, followed as it moves.
 - **View-only by default.** Guided input lands only in your app's own windows, and your customer
@@ -42,15 +46,17 @@ npm install @gaiadesk/tauri-plugin-support@0.3             # your frontend
 
 | Part | Version |
 |---|---|
-| `tauri-plugin-gaiadesk-support` (crates.io) | 0.3.0 |
-| `gaiadesk-embed-fetch` (crates.io, build helper) | 0.3.0 |
-| `libgaiadesk_embed` (the native library it fetches) | 0.2.0 |
-| `@gaiadesk/tauri-plugin-support` (npm) | 0.3.0 |
+| `tauri-plugin-gaiadesk-support` (crates.io) | 0.4.0 |
+| `gaiadesk-embed-fetch` (crates.io, build helper) | 0.4.0 |
+| `libgaiadesk_embed` (the native library it fetches) | 0.3.0 |
+| `@gaiadesk/tauri-plugin-support` (npm) | 0.4.0 |
 | Tauri | 2.x (the crate needs `tauri` 2.11 or later) |
 
 The plugin has its own 0.x version line; it is not Tauri's 2.x. Keep the crate, the fetch helper
 and the npm package on the same version: the fetch helper pins the library version that goes with
-them (0.3.0 fetches library 0.2.0).
+them (0.4.0 fetches library 0.3.0). With an older library (0.2.0) the plugin still works: the
+dialog is not attached to your window, the indicator ignores `indicatorPosition` and its place is
+not remembered, and a cancel while waiting ends as `app_stopped`.
 
 ## Quick start
 
@@ -270,7 +276,8 @@ If your window loads your site (`"url": "https://yourapp.com"`) instead of bundl
 | `masks` | Rects in CSS pixels, or a selector (default `[data-gaiadesk-mask]`; secret fields are always added, see Masks). |
 | `debugMasks` | Outline every masked region in the page while the session runs (development). |
 | `fps` | 1 to 30 (default 15). |
-| `consentGranted` | `true` only when you asked your user yourself and they agreed. |
+| `consentGranted` | `true` only when you asked your user yourself and they agreed: see [Your own consent dialog](#your-own-consent-dialog). |
+| `indicatorPosition` | `top-left`, `top-right`, `bottom-left` or `bottom-right`. Default: top right of the screen, moved to the first corner clear of your window (bottom right when your window fills the screen). Where your customer drags it wins, remembered in `<app data dir>/gaiadesk-support/indicator.json`. |
 | `askConsent` | Your dialog where the OS has none (Linux). Default `window.confirm`. |
 | `askDiagnostics` | Your "Also share app logs?" dialog (see Diagnostics). Default: a small dialog in the page. |
 
@@ -280,6 +287,58 @@ Plugin config (`plugins."gaiadesk-support"`, or `Builder` in Rust): `publishable
 ```rust
 .plugin(tauri_plugin_gaiadesk_support::Builder::new().publishable_key(env!("ACME_GAIADESK_KEY")).company("Acme").build())
 ```
+
+## Your own consent dialog
+
+The library's dialog is the default. To ask in your own UI instead (your design system, your words),
+ask first and pass `consentGranted: true` — a first-class path, not a workaround. The rules:
+
+- Ask **every time**, right before `startHelp`, and only start on an explicit yes. Never pass
+  `consentGranted: true` without asking.
+- Say **who** will see **what** (`capture`: this window, your app's windows, or the whole screen),
+  **whether they may guide** (`guided`), that **private fields stay hidden** (masks), and **how to
+  stop**.
+- The "Sharing with …" indicator is shown either way, for the whole session, and cannot be hidden:
+  that is how your customer stops.
+
+The minimum wording (adapt the style, keep every point):
+
+> **Share this window with Acme support?**
+>
+> Acme's support team will see this window until you stop sharing. Nothing else on your computer is
+> shared.
+>
+> - They see this window only *(capture `app`: "this app's windows"; `screen`: "your whole screen,
+>   including other apps")*
+> - View only: they cannot click or type *(guided: "They may click and type in this app; you can
+>   pause that any time")*
+> - Passwords and private fields stay hidden
+> - Stop any time with "Stop sharing" on the Acme bar
+>
+> [Don't Share] [**Share**]
+
+```ts
+import { startHelp } from '@gaiadesk/tauri-plugin-support';
+
+async function getHelp() {
+  const yes = await myDialog.confirm({
+    title: 'Share this window with Acme support?',
+    body: "Acme's support team will see this window until you stop sharing. Nothing else on your computer is shared.",
+    checklist: [
+      'They see this window only',
+      'View only: they cannot click or type',
+      'Passwords and private fields stay hidden',
+      'Stop any time with "Stop sharing" on the Acme bar',
+    ],
+    confirm: 'Share',
+    cancel: "Don't Share",
+  });
+  if (yes) await startHelp({ consentGranted: true });
+}
+```
+
+Keep what you say and what you pass in step: a dialog that said "view only" must not start with
+`guided: true`, nor one that said "this window" with `capture: 'screen'`.
 
 ## White-label
 
@@ -336,7 +395,7 @@ it. The outlines are part of the page, so an agent in a session sees them too: d
 | `paused` | `{paused}` | Guided input paused (by the customer on the indicator, or by you) or resumed |
 | `action` | `{action, applied, reason}` | A guided request and its outcome (`masked`, `not_focused`, …) |
 | `error` | `{code, message}` | e.g. `capture_failed`, `connect_failed` |
-| `ended` | `{reason, canRate}` | `stopped` (the customer), `app_stopped`, `disconnected`, `expired`, `error`. Always last. `canRate`: `rate()` may be called |
+| `ended` | `{reason, canRate}` | `stopped` (the customer), `app_stopped`, `customer_cancelled` (Cancel on the indicator, or `stop()`, while still waiting: no agent had joined; gone from your team's queue at once, and no agent can join it), `disconnected`, `expired`, `error`. Always last. `canRate`: `rate()` may be called |
 | `state` | `{state}` | `starting`, `waiting`, `connected`, `ended` |
 | `warning` | `{code, message}` | Something that does not stop the session: `bad_logo`, `diagnostics_skipped`, an upload's refusal |
 | `permission_required` | `{permission, restartRequired}` | macOS Screen Recording is not allowed; `startHelp` refused before creating a session |
@@ -366,7 +425,7 @@ button without try/catch:
 
 ```ts
 const info = await getInfo();
-// { available: true, pluginVersion: "0.3.0", libraryVersion: "0.2.0", libraryFound: true,
+// { available: true, pluginVersion: "0.4.0", libraryVersion: "0.3.0", libraryFound: true,
 //   libraryPath: "…/Frameworks/libgaiadesk_embed.dylib", libraryError: null, platform: "macos",
 //   guidedSupported: true, screenPermission: "granted", company: "Acme" }
 if (!info.available || !info.libraryFound) hideHelpButton();

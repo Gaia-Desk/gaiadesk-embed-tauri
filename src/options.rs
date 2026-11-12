@@ -50,6 +50,27 @@ impl Mode {
     }
 }
 
+/// The "Sharing with …" indicator's corner (default: top right, clear of your window).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum IndicatorPosition {
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+}
+
+impl IndicatorPosition {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            IndicatorPosition::TopLeft => "top-left",
+            IndicatorPosition::TopRight => "top-right",
+            IndicatorPosition::BottomLeft => "bottom-left",
+            IndicatorPosition::BottomRight => "bottom-right",
+        }
+    }
+}
+
 /// Your company's look on the consent dialog and the indicator.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -100,6 +121,44 @@ pub struct HelpOptions {
     pub consent_granted: bool,
     /// Frames per second, 1 to 30.
     pub fps: Option<u32>,
+    /// The indicator's corner. The customer can drag it; where they put it
+    /// is remembered for this app (`indicator.json` in the app's data dir).
+    pub indicator_position: Option<IndicatorPosition>,
+    /// Set by the JS side: masking is on (a selector, the default, or rects),
+    /// so the consent dialog can say private fields stay hidden.
+    #[serde(default)]
+    pub masking: bool,
+}
+
+/// What a library from 0.3.0 also takes (an older one refuses unknown keys):
+/// the calling window, the indicator's corner and remembered place, and
+/// whether masking is on.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Native {
+    /// `NSWindow*` (macOS) or `HWND` (Windows) of the window that called.
+    pub parent_window: Option<u64>,
+    pub masked: Option<bool>,
+    pub indicator_position: Option<IndicatorPosition>,
+    pub indicator_origin: Option<(f64, f64)>,
+}
+
+/// `json` (a start config or consent options) with `n`'s keys. Pure.
+pub fn with_native(json: &str, n: &Native) -> String {
+    let mut c: Value = serde_json::from_str(json).expect("our own JSON");
+    let m = c.as_object_mut().expect("object");
+    if let Some(p) = n.parent_window {
+        m.insert("parent_window".into(), p.into());
+    }
+    if let Some(b) = n.masked {
+        m.insert("masked".into(), b.into());
+    }
+    if let Some(p) = n.indicator_position {
+        m.insert("indicator_position".into(), p.as_str().into());
+    }
+    if let Some((x, y)) = n.indicator_origin.filter(|(x, y)| x.is_finite() && y.is_finite()) {
+        m.insert("indicator_origin".into(), json!({ "x": x, "y": y }));
+    }
+    c.to_string()
 }
 
 /// Branding, checked and ready for the library.
@@ -363,6 +422,32 @@ mod tests {
             plain,
             json!({ "company": "A", "capture": "window", "guided": false })
         );
+    }
+
+    #[test]
+    fn a_new_library_gets_the_window_and_the_indicators_place() {
+        let start = start_config("gdemb_x", None, &HelpOptions::default(), &brand(), &[], true);
+        let n = Native {
+            parent_window: Some(140_230_000),
+            masked: None,
+            indicator_position: Some(IndicatorPosition::BottomLeft),
+            indicator_origin: Some((12.0, -40.5)),
+        };
+        let c: Value = serde_json::from_str(&with_native(&start, &n)).unwrap();
+        assert_eq!(c["parent_window"], json!(140_230_000u64));
+        assert_eq!(c["indicator_position"], json!("bottom-left"));
+        assert_eq!(c["indicator_origin"], json!({ "x": 12.0, "y": -40.5 }));
+        assert!(c.get("masked").is_none());
+        let consent = with_native(
+            &consent_options(&HelpOptions::default(), &brand()),
+            &Native { parent_window: Some(7), masked: Some(true), ..Native::default() },
+        );
+        let c: Value = serde_json::from_str(&consent).unwrap();
+        assert_eq!((c["parent_window"].clone(), c["masked"].clone()), (json!(7), json!(true)));
+        assert_eq!(with_native(&start, &Native::default()), start, "nothing to add: unchanged");
+        let o = opts(json!({ "indicatorPosition": "top-left", "masking": true }));
+        assert_eq!((o.indicator_position, o.masking), (Some(IndicatorPosition::TopLeft), true));
+        assert!(serde_json::from_value::<HelpOptions>(json!({ "indicatorPosition": "middle" })).is_err());
     }
 
     #[test]

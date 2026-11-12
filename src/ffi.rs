@@ -162,6 +162,12 @@ impl Lib {
         self.show_consent_ex.is_some()
     }
 
+    /// 0.3.0 and later: `parent_window`, `indicator_position`,
+    /// `indicator_origin` and the consent dialog's `masked` (GD-27, GD-30).
+    pub fn supports_native(&self) -> bool {
+        version_at_least(&self.version(), (0, 3))
+    }
+
     pub fn version(&self) -> String {
         // SAFETY: a static NUL-terminated string.
         unsafe { cstr((self.version)()) }
@@ -267,6 +273,13 @@ impl Lib {
     }
 }
 
+/// `v` ("major.minor.patch…") is at least `min`. Pure.
+pub fn version_at_least(v: &str, min: (u32, u32)) -> bool {
+    let mut it = v.split('.').map(|p| p.trim().parse::<u32>().unwrap_or(0));
+    let (major, minor) = (it.next().unwrap_or(0), it.next().unwrap_or(0));
+    (major, minor) >= min
+}
+
 unsafe fn cstr(p: *const c_char) -> String {
     if p.is_null() {
         String::new()
@@ -278,6 +291,14 @@ unsafe fn cstr(p: *const c_char) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn versions_compare_by_major_and_minor() {
+        assert!(version_at_least("0.3.0", (0, 3)));
+        assert!(version_at_least("1.0.0", (0, 3)));
+        assert!(!version_at_least("0.2.9", (0, 3)));
+        assert!(!version_at_least("", (0, 3)));
+    }
 
     #[test]
     fn candidates_in_order() {

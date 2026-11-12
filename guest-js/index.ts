@@ -67,8 +67,17 @@ export interface HelpOptions {
    * followed as they move. Default `"[data-gaiadesk-mask]"`.
    */
   masks?: Rect[] | string;
-  /** `true` only when you asked your user yourself and they agreed: the native dialog is skipped. */
+  /**
+   * `true` only when you asked your user yourself and they agreed: the native dialog is skipped.
+   * Your dialog must say who will see what, whether they may guide, and how to stop (README:
+   * "Your own consent dialog"). The "Sharing with …" indicator is shown either way.
+   */
   consentGranted?: boolean;
+  /**
+   * Where the "Sharing with …" indicator starts. Default: top right of the screen, clear of your
+   * window. Your customer can drag it; where they put it is remembered for your app.
+   */
+  indicatorPosition?: IndicatorPosition;
   /** Your own consent dialog, used where the OS has none (Linux). Default: `window.confirm`. */
   askConsent?: (question: string) => boolean | Promise<boolean>;
   /**
@@ -80,10 +89,16 @@ export interface HelpOptions {
   debugMasks?: boolean;
 }
 
+/** The indicator's corner. */
+export type IndicatorPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+
 /** Where a session is. */
 export type State = 'idle' | 'consent' | 'starting' | 'waiting' | 'connected' | 'ended';
-/** Why a session ended. */
-export type EndReason = 'stopped' | 'app_stopped' | 'disconnected' | 'expired' | 'error';
+/**
+ * Why a session ended. `customer_cancelled`: Cancel on the indicator, or {@link stop}, while still
+ * waiting (no agent had joined): the request left your team's queue at once.
+ */
+export type EndReason = 'stopped' | 'app_stopped' | 'customer_cancelled' | 'disconnected' | 'expired' | 'error';
 
 export interface Status {
   state: State;
@@ -280,7 +295,7 @@ function question(o: HelpOptions): string {
 export async function startHelp(options: HelpOptions = {}): Promise<Status> {
   const { askConsent, askDiagnostics, debugMasks, masks = DEFAULT_MASK_SELECTOR, ...rest } = options;
   const selector = typeof masks === 'string' ? masks : null;
-  const send = { ...rest, masks: selector === null ? masks : rectsOf(selector) };
+  const send = { ...rest, masks: selector === null ? masks : rectsOf(selector), masking: selector !== null || masks.length > 0 };
   let status: Status;
   try {
     status = await call<Status>('start_help', { options: send });
@@ -452,7 +467,10 @@ export function declineRequest(id: string): Promise<void> {
   return call('decline_request', { id });
 }
 
-/** End the session (the `ended` event follows, reason `app_stopped`). */
+/**
+ * End the session (the `ended` event follows: `app_stopped`, or `customer_cancelled` while your
+ * customer is still waiting — the request then leaves your team's queue at once).
+ */
 export function stop(): Promise<Status> {
   clearInterval(follow);
   if (overlayForSession) showMaskOverlay(false);
