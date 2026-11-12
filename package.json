@@ -23,7 +23,7 @@
   "scripts": {
     "build": "tsc -p guest-js/tsconfig.json",
     "prepack": "npm run build",
-    "test": "npm run build && node --test guest-js/test/"
+    "test": "npm run build && node --test guest-js/test/*.test.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0"
