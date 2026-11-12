@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.4.0 (unreleased)
+## 0.4.1
+
+The fetch helper downloads `libgaiadesk_embed` 0.3.1 (the same library as 0.3.0, rebuilt so the
+macOS static library no longer carries the build machine's file paths) and pins its archive hashes.
+No API change.
+
+## 0.4.0
 
 For `libgaiadesk_embed` 0.3.0 (the fetch helper's pins move to it when it is released; with 0.2.0
 the new keys are not sent and everything else works as in 0.3.0).

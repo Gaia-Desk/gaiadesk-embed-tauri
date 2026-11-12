@@ -46,15 +46,15 @@ npm install @gaiadesk/tauri-plugin-support@0.4             # your frontend
 
 | Part | Version |
 |---|---|
-| `tauri-plugin-gaiadesk-support` (crates.io) | 0.4.0 |
-| `gaiadesk-embed-fetch` (crates.io, build helper) | 0.4.0 |
-| `libgaiadesk_embed` (the native library it fetches) | 0.3.0 |
-| `@gaiadesk/tauri-plugin-support` (npm) | 0.4.0 |
+| `tauri-plugin-gaiadesk-support` (crates.io) | 0.4.1 |
+| `gaiadesk-embed-fetch` (crates.io, build helper) | 0.4.1 |
+| `libgaiadesk_embed` (the native library it fetches) | 0.3.1 |
+| `@gaiadesk/tauri-plugin-support` (npm) | 0.4.1 |
 | Tauri | 2.x (the crate needs `tauri` 2.11 or later) |
 
 The plugin has its own 0.x version line; it is not Tauri's 2.x. Keep the crate, the fetch helper
 and the npm package on the same version: the fetch helper pins the library version that goes with
-them (0.4.0 fetches library 0.3.0). With an older library (0.2.0) the plugin still works: the
+them (0.4.1 fetches library 0.3.1). With an older library (0.2.0) the plugin still works: the
 dialog is not attached to your window, the indicator ignores `indicatorPosition` and its place is
 not remembered, and a cancel while waiting ends as `app_stopped`.
 
@@ -425,7 +425,7 @@ button without try/catch:
 
 ```ts
 const info = await getInfo();
-// { available: true, pluginVersion: "0.4.0", libraryVersion: "0.3.0", libraryFound: true,
+// { available: true, pluginVersion: "0.4.1", libraryVersion: "0.3.1", libraryFound: true,
 //   libraryPath: "…/Frameworks/libgaiadesk_embed.dylib", libraryError: null, platform: "macos",
 //   guidedSupported: true, screenPermission: "granted", company: "Acme" }
 if (!info.available || !info.libraryFound) hideHelpButton();
@@ -554,7 +554,7 @@ At build time `fetch`:
 
 - downloads `gaiadesk_embed-macos-universal.tar.gz`, `gaiadesk_embed-win-x64.zip` or
   `gaiadesk_embed-linux-x64.tar.gz` from the
-  [gaiadesk-embed-cpp v0.3.0 release](https://github.com/Gaia-Desk/gaiadesk-embed-cpp/releases/tag/v0.3.0),
+  [gaiadesk-embed-cpp v0.3.1 release](https://github.com/Gaia-Desk/gaiadesk-embed-cpp/releases/tag/v0.3.1),
   with `curl` and `tar` (macOS, Linux and Windows 10+ have both);
 - refuses it unless its SHA-256 matches the hash pinned in `PINNED` (`fetch/src/lib.rs`): nothing is
   unpacked and the build fails;
