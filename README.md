@@ -554,7 +554,7 @@ At build time `fetch`:
 
 - downloads `gaiadesk_embed-macos-universal.tar.gz`, `gaiadesk_embed-win-x64.zip` or
   `gaiadesk_embed-linux-x64.tar.gz` from the
-  [gaiadesk-embed-cpp v0.2.0 release](https://github.com/Gaia-Desk/gaiadesk-embed-cpp/releases/tag/v0.2.0),
+  [gaiadesk-embed-cpp v0.3.0 release](https://github.com/Gaia-Desk/gaiadesk-embed-cpp/releases/tag/v0.3.0),
   with `curl` and `tar` (macOS, Linux and Windows 10+ have both);
 - refuses it unless its SHA-256 matches the hash pinned in `PINNED` (`fetch/src/lib.rs`): nothing is
   unpacked and the build fails;
