@@ -282,7 +282,7 @@ If your window loads your site (`"url": "https://yourapp.com"`) instead of bundl
 | `consentToken`, `consentReceipt` | An accepted decision's `consent_token` and `receipt` from [the consent step](#the-consent-step-recommended): the dialog is skipped, the receipt is stored on the session, and `capture` / `guided` follow your customer's choices. |
 | `consentGranted` | `true` only when you asked your user yourself and they agreed: see [Your own consent dialog](#your-own-consent-dialog). Prefer the consent step. |
 | `indicatorPosition` | `top-left`, `top-right`, `bottom-left` or `bottom-right`. Default: top right of the screen, moved to the first corner clear of your window (bottom right when your window fills the screen). Where your customer drags it wins, remembered in `<app data dir>/gaiadesk-support/indicator.json`. |
-| `askConsent` | Your dialog where the OS has none (Linux). Default `window.confirm`. |
+| `askConsent` | Your dialog where the library has none (Wayland-only Linux, or a library before 0.4.0). Default `window.confirm`. |
 | `askDiagnostics` | Your "Also share app logs?" dialog (see Diagnostics). Default: a small dialog in the page. |
 
 Plugin config (`plugins."gaiadesk-support"`, or `Builder` in Rust): `publishableKey`, `company`,
@@ -606,7 +606,7 @@ process, so it needs no Accessibility permission.
 |---|---|---|---|---|
 | macOS 12.3+ (universal: Apple silicon and Intel) | `libgaiadesk_embed.dylib` | window, screen | yes | native, branded |
 | Windows x64 | `gaiadesk_embed.dll` (needs `VCRUNTIME140.dll`) | window, screen | yes | native, branded |
-| Linux x86_64 (X11, glibc) | `libgaiadesk_embed.so` (needs `libgbm1`, `libwayland-client0`, `libxcb1`) | window, screen | **view-only** | yours (`askConsent`) |
+| Linux x86_64 (X11, glibc) | `libgaiadesk_embed.so` (needs `libgbm1`, `libwayland-client0`, `libxcb1`) | window, screen | **view-only** | native (X11 / XWayland, library 0.4.0+); yours (`askConsent`) on Wayland-only |
 
 Other targets (Windows on Arm, Linux arm64) build, and `startHelp` rejects with `library_missing`.
 
