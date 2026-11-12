@@ -2,14 +2,14 @@
 //! the library checks every value itself and refuses with a code; this only
 //! spells it right.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 
 use crate::error::{Error, Result};
 use crate::ffi::GdRect;
 
 /// What is shared.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Capture {
     /// This app's window (the default).
@@ -128,6 +128,12 @@ pub struct HelpOptions {
     /// so the consent dialog can say private fields stay hidden.
     #[serde(default)]
     pub masking: bool,
+    /// The consent step's (`consent` / `recordConsent`) `consent_token`: the
+    /// dialog is skipped and the library checks it (libgaiadesk_embed 0.4.0).
+    pub consent_token: Option<String>,
+    /// The decision's `receipt` (accepted): skips the dialog, sent with the
+    /// join; `capture` and `guided` follow the customer's choices.
+    pub consent_receipt: Option<Value>,
 }
 
 /// What a library from 0.3.0 also takes (an older one refuses unknown keys):
@@ -155,7 +161,10 @@ pub fn with_native(json: &str, n: &Native) -> String {
     if let Some(p) = n.indicator_position {
         m.insert("indicator_position".into(), p.as_str().into());
     }
-    if let Some((x, y)) = n.indicator_origin.filter(|(x, y)| x.is_finite() && y.is_finite()) {
+    if let Some((x, y)) = n
+        .indicator_origin
+        .filter(|(x, y)| x.is_finite() && y.is_finite())
+    {
         m.insert("indicator_origin".into(), json!({ "x": x, "y": y }));
     }
     c.to_string()
@@ -201,14 +210,21 @@ pub fn start_config(
     masks: &[GdRect],
     branded: bool,
 ) -> String {
+    let (capture, guided) = crate::consent::granted(o);
     let mut c = json!({
         "embed_token": token,
         "consent_granted": true,
         "company": brand.company,
-        "capture": o.capture.as_str(),
-        "guided": o.guided,
+        "capture": capture,
+        "guided": guided,
     });
     let m = c.as_object_mut().expect("object");
+    if let Some(t) = &o.consent_token {
+        m.insert("consent_token".into(), t.clone().into());
+    }
+    if let Some(r) = &o.consent_receipt {
+        m.insert("consent_receipt".into(), r.clone());
+    }
     if let Some(s) = server {
         m.insert("server".into(), s.into());
     }
@@ -426,7 +442,14 @@ mod tests {
 
     #[test]
     fn a_new_library_gets_the_window_and_the_indicators_place() {
-        let start = start_config("gdemb_x", None, &HelpOptions::default(), &brand(), &[], true);
+        let start = start_config(
+            "gdemb_x",
+            None,
+            &HelpOptions::default(),
+            &brand(),
+            &[],
+            true,
+        );
         let n = Native {
             parent_window: Some(140_230_000),
             masked: None,
@@ -440,14 +463,31 @@ mod tests {
         assert!(c.get("masked").is_none());
         let consent = with_native(
             &consent_options(&HelpOptions::default(), &brand()),
-            &Native { parent_window: Some(7), masked: Some(true), ..Native::default() },
+            &Native {
+                parent_window: Some(7),
+                masked: Some(true),
+                ..Native::default()
+            },
         );
         let c: Value = serde_json::from_str(&consent).unwrap();
-        assert_eq!((c["parent_window"].clone(), c["masked"].clone()), (json!(7), json!(true)));
-        assert_eq!(with_native(&start, &Native::default()), start, "nothing to add: unchanged");
+        assert_eq!(
+            (c["parent_window"].clone(), c["masked"].clone()),
+            (json!(7), json!(true))
+        );
+        assert_eq!(
+            with_native(&start, &Native::default()),
+            start,
+            "nothing to add: unchanged"
+        );
         let o = opts(json!({ "indicatorPosition": "top-left", "masking": true }));
-        assert_eq!((o.indicator_position, o.masking), (Some(IndicatorPosition::TopLeft), true));
-        assert!(serde_json::from_value::<HelpOptions>(json!({ "indicatorPosition": "middle" })).is_err());
+        assert_eq!(
+            (o.indicator_position, o.masking),
+            (Some(IndicatorPosition::TopLeft), true)
+        );
+        assert!(
+            serde_json::from_value::<HelpOptions>(json!({ "indicatorPosition": "middle" }))
+                .is_err()
+        );
     }
 
     #[test]

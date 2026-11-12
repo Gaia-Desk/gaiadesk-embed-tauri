@@ -37,26 +37,29 @@ Not in a desktop app? See the [web SDK](https://gaiadesk.net/docs/web-in-app-sup
 ## Install
 
 ```sh
-cargo add tauri-plugin-gaiadesk-support@0.4                # in src-tauri/
-cargo add --build gaiadesk-embed-fetch@0.4                 # in src-tauri/: fetches the library at build time
-npm install @gaiadesk/tauri-plugin-support@0.4             # your frontend
+cargo add tauri-plugin-gaiadesk-support@0.5                # in src-tauri/
+cargo add --build gaiadesk-embed-fetch@0.5                 # in src-tauri/: fetches the library at build time
+npm install @gaiadesk/tauri-plugin-support@0.5             # your frontend
 ```
 
 ### Versions that go together
 
 | Part | Version |
 |---|---|
-| `tauri-plugin-gaiadesk-support` (crates.io) | 0.4.1 |
-| `gaiadesk-embed-fetch` (crates.io, build helper) | 0.4.1 |
-| `libgaiadesk_embed` (the native library it fetches) | 0.3.1 |
-| `@gaiadesk/tauri-plugin-support` (npm) | 0.4.1 |
+| `tauri-plugin-gaiadesk-support` (crates.io) | 0.5.0 |
+| `gaiadesk-embed-fetch` (crates.io, build helper) | 0.5.0 |
+| `libgaiadesk_embed` (the native library it fetches) | 0.4.0 |
+| `@gaiadesk/consent` (npm, optional: the consent step in your page) | 0.1.x |
+| `@gaiadesk/tauri-plugin-support` (npm) | 0.5.0 |
 | Tauri | 2.x (the crate needs `tauri` 2.11 or later) |
 
 The plugin has its own 0.x version line; it is not Tauri's 2.x. Keep the crate, the fetch helper
 and the npm package on the same version: the fetch helper pins the library version that goes with
-them (0.4.1 fetches library 0.3.1). With an older library (0.2.0) the plugin still works: the
-dialog is not attached to your window, the indicator ignores `indicatorPosition` and its place is
-not remembered, and a cancel while waiting ends as `app_stopped`.
+them (0.5.0 fetches library 0.4.0). With an older library the plugin still works: before 0.4.0
+`consent`, `preview` and `recordConsent` reject with `unsupported` (and so does `startHelp` given a
+`consentToken` or `consentReceipt`); with 0.2.0 the dialog is not attached to your window, the
+indicator ignores `indicatorPosition` and its place is not remembered, and a cancel while waiting
+ends as `app_stopped`.
 
 ## Quick start
 
@@ -276,7 +279,8 @@ If your window loads your site (`"url": "https://yourapp.com"`) instead of bundl
 | `masks` | Rects in CSS pixels, or a selector (default `[data-gaiadesk-mask]`; secret fields are always added, see Masks). |
 | `debugMasks` | Outline every masked region in the page while the session runs (development). |
 | `fps` | 1 to 30 (default 15). |
-| `consentGranted` | `true` only when you asked your user yourself and they agreed: see [Your own consent dialog](#your-own-consent-dialog). |
+| `consentToken`, `consentReceipt` | An accepted decision's `consent_token` and `receipt` from [the consent step](#the-consent-step-recommended): the dialog is skipped, the receipt is stored on the session, and `capture` / `guided` follow your customer's choices. |
+| `consentGranted` | `true` only when you asked your user yourself and they agreed: see [Your own consent dialog](#your-own-consent-dialog). Prefer the consent step. |
 | `indicatorPosition` | `top-left`, `top-right`, `bottom-left` or `bottom-right`. Default: top right of the screen, moved to the first corner clear of your window (bottom right when your window fills the screen). Where your customer drags it wins, remembered in `<app data dir>/gaiadesk-support/indicator.json`. |
 | `askConsent` | Your dialog where the OS has none (Linux). Default `window.confirm`. |
 | `askDiagnostics` | Your "Also share app logs?" dialog (see Diagnostics). Default: a small dialog in the page. |
@@ -287,6 +291,65 @@ Plugin config (`plugins."gaiadesk-support"`, or `Builder` in Rust): `publishable
 ```rust
 .plugin(tauri_plugin_gaiadesk_support::Builder::new().publishable_key(env!("ACME_GAIADESK_KEY")).company("Acme").build())
 ```
+
+## The consent step (recommended)
+
+Ask with GaiaDesk's consent step rather than `startHelp`'s plain dialog or your own UI with
+`consentGranted: true`. It shows your customer a **live preview** of exactly what support will see
+(masked fields blacked out), lets them **choose** (view only or click-and-type, app logs, this window
+or the screen), says **who is waiting** and for how long, is **localized** (14 languages, right to
+left included) and themed to your app, and leaves a **receipt** (when, which words — version and
+hash —, what was chosen, the OS user and app version) stored on the session and shown in the
+console. A decline or timeout ends the waiting request at once (`customer_declined` /
+`consent_timeout`). Needs libgaiadesk_embed 0.4.0.
+
+**In your page** (Tauri always has a webview, so this is the usual choice): the
+[`@gaiadesk/consent`](https://www.npmjs.com/package/@gaiadesk/consent) web component, with this
+plugin as its bridge — the library takes the preview and makes the receipt.
+
+```ts
+import '@gaiadesk/consent'; // registers <gaiadesk-consent>
+import { consentBridge, startHelp } from '@gaiadesk/tauri-plugin-support';
+
+async function getHelp() {
+  const el = document.body.appendChild(document.createElement('gaiadesk-consent'));
+  el.bridge = consentBridge;
+  const d = await el.open({ company: 'Acme', guided: true, masked: true, choices: { offer_logs: true } });
+  el.remove();
+  if (d.decision !== 'accepted') return;
+  await startHelp({ guided: true, consentToken: d.consent_token, consentReceipt: d.receipt });
+}
+```
+
+`consentBridge` posts an accepted receipt with `startHelp`. When your backend already created the
+session, use `createConsentBridge({ embedToken, sessionId })` instead: it also shows who is waiting,
+and every receipt (a decline too) is posted at once.
+
+**The library's dialog**, a native window attached to yours, with the same options:
+
+```ts
+import { consent, on, startHelp } from '@gaiadesk/tauri-plugin-support';
+
+on('consent_declined', ({ reason }) => track('consent_declined', reason)); // "declined" | "timeout"
+const d = await consent({ company: 'Acme', guided: true, theme: { accent: '#5b4cf0' }, timeout_seconds: 120 });
+if (d.decision === 'accepted') await startHelp({ guided: true, consentToken: d.consent_token, consentReceipt: d.receipt });
+// "unavailable": no dialog on this system (Wayland without XWayland): use <gaiadesk-consent>.
+```
+
+The options are the library's (snake_case, every key optional), the same object the web component
+takes: `company`, `capture`, `guided`, `masked`, `brand_color`, `logo_png_base64`, `theme`
+(`appearance`, `background`, `surface`, `text`, `accent`, `radius`, `font_family`,
+`button_style`), `locale`, `wording` (per-key overrides), `wording_version`, `choices`
+(`offer_guided`, `offer_logs`, `offer_capture`), `privacy_url`, `terms_url`, `timeout_seconds`,
+`preview`, `server` / `embed_token` / `session_id` (then the library shows who is waiting and posts
+the receipt), `app_version`, `window_id`, `masks`. The plugin fills `company` and the brand from its
+config, `parent_window` (the calling window) and `app_version`; `masks` are CSS pixels of the page.
+The decision: `{decision: "accepted" | "declined" | "timeout" | "unavailable", choices,
+consent_token, receipt}`.
+
+Also: `preview(request)` (one PNG frame of what support would see, `capture_unavailable` without
+permission), `recordConsent(input)` (your own UI's answer made a receipt, `surface: "embedded"`) and
+`waitInfo({ embedToken, sessionId })`.
 
 ## Your own consent dialog
 
@@ -395,8 +458,11 @@ it. The outlines are part of the page, so an agent in a session sees them too: d
 | `paused` | `{paused}` | Guided input paused (by the customer on the indicator, or by you) or resumed |
 | `action` | `{action, applied, reason}` | A guided request and its outcome (`masked`, `not_focused`, …) |
 | `error` | `{code, message}` | e.g. `capture_failed`, `connect_failed` |
-| `ended` | `{reason, canRate}` | `stopped` (the customer), `app_stopped`, `customer_cancelled` (Cancel on the indicator, or `stop()`, while still waiting: no agent had joined; gone from your team's queue at once, and no agent can join it), `disconnected`, `expired`, `error`. Always last. `canRate`: `rate()` may be called |
-| `state` | `{state}` | `starting`, `waiting`, `connected`, `ended` |
+| `ended` | `{reason, canRate}` | `stopped` (the customer), `app_stopped`, `customer_cancelled` (Cancel on the indicator, or `stop()`, while still waiting: no agent had joined; gone from your team's queue at once, and no agent can join it), `customer_declined` / `consent_timeout` (the session's consent receipt said no, or the dialog timed out; gone from the queue the same way), `disconnected`, `expired`, `error`. Always last. `canRate`: `rate()` may be called |
+| `state` | `{state, choices?}` | `starting`, `waiting`, `connected`, `ended`; `waiting` carries `choices` (`{guided, share_logs, capture}`: what the session runs with) |
+| `consent_shown` | `{locale, wording_version}` | The consent step's dialog (`consent()`) is up |
+| `consent_accepted` | `{choices}` | Your customer agreed |
+| `consent_declined` | `{reason}` | `declined` or `timeout` |
 | `warning` | `{code, message}` | Something that does not stop the session: `bad_logo`, `diagnostics_skipped`, an upload's refusal |
 | `permission_required` | `{permission, restartRequired}` | macOS Screen Recording is not allowed; `startHelp` refused before creating a session |
 | `diagnostics_sent` | `{attachments}` | Diagnostics uploaded after the customer agreed |
@@ -407,14 +473,14 @@ it. The outlines are part of the page, so an agent in a session sees them too: d
 
 Commands: `startHelp`, `stop`, `pause`, `resume` (refused, `pause_refused`, when the customer
 paused), `setMasks`, `status` (`{state, code, sessionId, mode, agent, paused, endReason,
-estimatedWaitSeconds}`), `getInfo`, `screenPermission`, `requestScreenPermission`,
+estimatedWaitSeconds, choices}`), `consent`, `preview`, `recordConsent`, `waitInfo`, `getInfo`, `screenPermission`, `requestScreenPermission`,
 `openScreenPermissionSettings`, `rate`, `attachDiagnostics`, `listen`, `stopListening`,
 `acceptRequest`, `declineRequest`, `showMaskOverlay`.
 Refusals reject with a `SupportError` whose `code` is the library's (`consent_required`,
 `bad_token`, `bad_config`, `bad_rects`, …) or the plugin's: `declined`, `busy`, `no_session`,
 `library_missing`, `secret_key_in_app`, `permission_required`, `not_listening`, `create_failed`
 or the server's reason (`too_many_open_sessions`, `request_expired`, …), `bad_color`,
-`bad_options`. A branding value the library's dialog refuses rejects with `bad_config` (and an
+`bad_options`, `unsupported` (the consent step on a library before 0.4.0). A branding value the library's dialog refuses rejects with `bad_config` (and an
 `error` event), never as `declined`.
 
 ## Feature detection
@@ -425,7 +491,7 @@ button without try/catch:
 
 ```ts
 const info = await getInfo();
-// { available: true, pluginVersion: "0.4.1", libraryVersion: "0.3.1", libraryFound: true,
+// { available: true, pluginVersion: "0.5.0", libraryVersion: "0.4.0", libraryFound: true,
 //   libraryPath: "…/Frameworks/libgaiadesk_embed.dylib", libraryError: null, platform: "macos",
 //   guidedSupported: true, screenPermission: "granted", company: "Acme" }
 if (!info.available || !info.libraryFound) hideHelpButton();
@@ -508,7 +574,8 @@ Quitting the app ends the session (`app_stopped`).
 `allow-screen-permission`, `allow-request-screen-permission`,
 `allow-open-screen-permission-settings`, `allow-rate`, `allow-attach-diagnostics`,
 `allow-send-diagnostics`, `allow-discard-diagnostics`, `allow-listen`, `allow-stop-listening`,
-`allow-decline-request`. Grant it only to windows that should offer help; each `allow-*` /
+`allow-decline-request`, `allow-consent`, `allow-preview`, `allow-record-consent`,
+`allow-wait-info`. Grant it only to windows that should offer help; each `allow-*` /
 `deny-*` can be used on its own (e.g. `deny-attach-diagnostics` to forbid diagnostics).
 
 ## macOS
@@ -554,7 +621,7 @@ At build time `fetch`:
 
 - downloads `gaiadesk_embed-macos-universal.tar.gz`, `gaiadesk_embed-win-x64.zip` or
   `gaiadesk_embed-linux-x64.tar.gz` from the
-  [gaiadesk-embed-cpp v0.3.1 release](https://github.com/Gaia-Desk/gaiadesk-embed-cpp/releases/tag/v0.3.1),
+  [gaiadesk-embed-cpp v0.4.0 release](https://github.com/Gaia-Desk/gaiadesk-embed-cpp/releases/tag/v0.4.0),
   with `curl` and `tar` (macOS, Linux and Windows 10+ have both);
 - refuses it unless its SHA-256 matches the hash pinned in `PINNED` (`fetch/src/lib.rs`): nothing is
   unpacked and the build fails;

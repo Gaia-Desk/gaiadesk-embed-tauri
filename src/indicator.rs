@@ -11,7 +11,13 @@ use serde_json::Value;
 use tauri::{AppHandle, Manager, Runtime};
 
 fn file<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
-    Some(app.path().app_data_dir().ok()?.join("gaiadesk-support").join("indicator.json"))
+    Some(
+        app.path()
+            .app_data_dir()
+            .ok()?
+            .join("gaiadesk-support")
+            .join("indicator.json"),
+    )
 }
 
 /// `{"x":…,"y":…}` → the place, when both are finite numbers. Pure.
@@ -27,7 +33,9 @@ pub(crate) fn saved<R: Runtime>(app: &AppHandle<R>) -> Option<(f64, f64)> {
 
 /// Best effort: a place that cannot be kept is simply not remembered.
 pub(crate) fn save<R: Runtime>(app: &AppHandle<R>, at: &Value) {
-    let (Some(path), Some((x, y))) = (file(app), parse(at)) else { return };
+    let (Some(path), Some((x, y))) = (file(app), parse(at)) else {
+        return;
+    };
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }

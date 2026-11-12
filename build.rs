@@ -17,6 +17,10 @@ const COMMANDS: &[&str] = &[
     "listen",
     "stop_listening",
     "decline_request",
+    "consent",
+    "preview",
+    "record_consent",
+    "wait_info",
 ];
 
 fn main() {

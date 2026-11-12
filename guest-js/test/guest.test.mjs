@@ -86,3 +86,72 @@ test('startHelp tells the plugin whether masking is on, and the indicator corner
   assert.deepEqual([starts[0].masking, starts[0].indicatorPosition], [false, 'bottom-left']);
   assert.equal(starts[1].masking, true);
 });
+
+function mockTauri(answer) {
+  const calls = [];
+  window.__TAURI_INTERNALS__ = {
+    invoke: async (cmd, args) => {
+      calls.push([cmd.replace('plugin:gaiadesk-support|', ''), args]);
+      return answer(cmd.replace('plugin:gaiadesk-support|', ''), args);
+    },
+    transformCallback: () => 0,
+  };
+  return calls;
+}
+
+const choices = { guided: false, share_logs: false, capture: 'window' };
+const input = { decision: 'declined', choices, wording: { title: 'Share?' }, wording_version: 'v', locale: 'en', company: 'Acme', capture: 'window', app_version: null };
+
+test('consentBridge: preview and a library-made receipt, no waitInfo without a session', async () => {
+  const calls = mockTauri((cmd) => (cmd === 'preview' ? { png_base64: 'x', width: 1, height: 1, masked_count: 0 } : { decision: 'declined', choices }));
+  try {
+    assert.equal(g.consentBridge.waitInfo, undefined);
+    assert.equal((await g.consentBridge.preview({ capture: 'window', masks: [{ x: 0, y: 0, w: 1, h: 1 }] })).png_base64, 'x');
+    assert.equal((await g.consentBridge.recordConsent(input)).decision, 'declined');
+  } finally {
+    delete window.__TAURI_INTERNALS__;
+  }
+  assert.deepEqual(calls, [
+    ['preview', { options: { capture: 'window', masks: [{ x: 0, y: 0, w: 1, h: 1 }] } }],
+    ['record_consent', { input }],
+  ]);
+});
+
+test('a bridge with the session says who is waiting and has the library post the receipt', async () => {
+  const calls = mockTauri((cmd) => (cmd === 'wait_info' ? { team_name: 'Acme Support', team_avatar_url: null, estimated_wait_seconds: 60 } : { decision: 'declined' }));
+  const b = g.createConsentBridge({ embedToken: 'gdemb_1', sessionId: 'ss_1' });
+  try {
+    assert.equal((await b.waitInfo()).team_name, 'Acme Support');
+    await b.recordConsent(input);
+  } finally {
+    delete window.__TAURI_INTERNALS__;
+  }
+  assert.deepEqual(calls[0], ['wait_info', { embedToken: 'gdemb_1', sessionId: 'ss_1' }]);
+  assert.deepEqual(calls[1], ['record_consent', { input: { ...input, embed_token: 'gdemb_1', session_id: 'ss_1' } }]);
+});
+
+test('consent() runs the dialog command; refusals keep their code', async () => {
+  const calls = mockTauri((cmd) => {
+    if (cmd === 'consent') return { decision: 'accepted', choices, consent_token: 'gdc_1' };
+    throw { code: 'capture_unavailable', message: 'no permission' };
+  });
+  try {
+    assert.equal((await g.consent({ company: 'Acme', guided: true })).consent_token, 'gdc_1');
+    await assert.rejects(g.preview(), (e) => e instanceof g.SupportError && e.code === 'capture_unavailable');
+  } finally {
+    delete window.__TAURI_INTERNALS__;
+  }
+  assert.deepEqual(calls[0], ['consent', { options: { company: 'Acme', guided: true } }]);
+});
+
+test('startHelp hands the decision to the plugin', async () => {
+  const receipt = { id: 'cr_1', decision: 'accepted', choices };
+  const calls = mockTauri((cmd) => (cmd === 'start_help' ? { state: 'starting' } : null));
+  try {
+    await g.startHelp({ masks: [], consentToken: 'gdc_1', consentReceipt: receipt });
+  } finally {
+    delete window.__TAURI_INTERNALS__;
+  }
+  const o = calls.find(([c]) => c === 'start_help')[1].options;
+  assert.deepEqual([o.consentToken, o.consentReceipt], ['gdc_1', receipt]);
+});

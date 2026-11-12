@@ -39,6 +39,9 @@ type SetPausedFn = unsafe extern "C" fn(*mut GdEmbed, c_int) -> c_int;
 type ShowConsentFn = unsafe extern "C" fn(*const c_char, *const c_char, c_int) -> c_int;
 type ShowConsentExFn = unsafe extern "C" fn(*const c_char) -> c_int;
 type StrFn = unsafe extern "C" fn() -> *const c_char;
+type ConsentFn =
+    unsafe extern "C" fn(*const c_char, Option<GdEventFn>, *mut c_void) -> *const c_char;
+type JsonFn = unsafe extern "C" fn(*const c_char) -> *const c_char;
 
 /// The loaded library.
 pub struct Lib {
@@ -50,6 +53,10 @@ pub struct Lib {
     show_consent: ShowConsentFn,
     /// Newer libraries only: the branded dialog.
     show_consent_ex: Option<ShowConsentExFn>,
+    /// 0.4.0 and later: the consent step (GD-31).
+    consent: Option<ConsentFn>,
+    preview: Option<JsonFn>,
+    record_consent_ex: Option<JsonFn>,
     last_error: StrFn,
     version: StrFn,
     build_info: StrFn,
@@ -146,6 +153,12 @@ impl Lib {
                     .get::<ShowConsentExFn>(b"gd_embed_show_consent_ex\0")
                     .ok()
                     .map(|s| *s),
+                consent: lib.get::<ConsentFn>(b"gd_embed_consent\0").ok().map(|s| *s),
+                preview: lib.get::<JsonFn>(b"gd_embed_preview\0").ok().map(|s| *s),
+                record_consent_ex: lib
+                    .get::<JsonFn>(b"gd_embed_record_consent_ex\0")
+                    .ok()
+                    .map(|s| *s),
                 last_error: *lib.get::<StrFn>(b"gd_embed_last_error\0").map_err(fail)?,
                 version: *lib.get::<StrFn>(b"gd_embed_version\0").map_err(fail)?,
                 build_info: *lib.get::<StrFn>(b"gd_embed_build_info\0").map_err(fail)?,
@@ -166,6 +179,73 @@ impl Lib {
     /// `indicator_origin` and the consent dialog's `masked` (GD-27, GD-30).
     pub fn supports_native(&self) -> bool {
         version_at_least(&self.version(), (0, 3))
+    }
+
+    /// 0.4.0 and later: `consent`, `preview`, `record_consent_ex`, and
+    /// start's `consent_token` / `consent_receipt` (GD-31).
+    pub fn supports_consent(&self) -> bool {
+        version_at_least(&self.version(), (0, 4)) && self.consent.is_some()
+    }
+
+    /// A 0.4.0 symbol, or `unsupported` on an older library.
+    fn need<T: Copy>(&self, f: Option<T>) -> Result<T, Error> {
+        match f {
+            Some(f) if version_at_least(&self.version(), (0, 4)) => Ok(f),
+            _ => Err(Error::new(
+                "unsupported",
+                format!(
+                    "the consent step needs libgaiadesk_embed 0.4.0 (this is {})",
+                    self.version()
+                ),
+            )),
+        }
+    }
+
+    /// A returned JSON string (copied at once: valid until the next call on
+    /// this thread) as a Value, or the last error.
+    ///
+    /// # Safety
+    /// `p` came from the library on this thread just now.
+    unsafe fn json(&self, p: *const c_char, fallback: &str) -> Result<serde_json::Value, Error> {
+        if p.is_null() {
+            return Err(self.last_error(fallback));
+        }
+        serde_json::from_str(&cstr(p))
+            .map_err(|e| Error::new("internal", format!("the library answered badly: {e}")))
+    }
+
+    /// `gd_embed_consent`: the dialog, then §2's decision. Blocks; macOS:
+    /// call on the main thread (else `wrong_thread`). `on_event` gets
+    /// `user` and each `consent_*` event on this thread.
+    ///
+    /// # Safety
+    /// `user` is what `on_event` expects and stays valid until this returns.
+    pub unsafe fn consent(
+        &self,
+        options_json: &str,
+        on_event: Option<GdEventFn>,
+        user: *mut c_void,
+    ) -> Result<serde_json::Value, Error> {
+        let f = self.need(self.consent)?;
+        let o = nul_free(options_json)?;
+        // SAFETY: a NUL-terminated JSON string; the caller keeps `user` valid (the call blocks).
+        self.json(f(o.as_ptr(), on_event, user), "consent_failed")
+    }
+
+    /// `gd_embed_preview`: §4's frame, or `capture_unavailable`.
+    pub fn preview(&self, options_json: &str) -> Result<serde_json::Value, Error> {
+        let f = self.need(self.preview)?;
+        let o = nul_free(options_json)?;
+        // SAFETY: as above.
+        unsafe { self.json(f(o.as_ptr()), "capture_unavailable") }
+    }
+
+    /// `gd_embed_record_consent_ex`: your (or the embedded) UI's answer as §2's decision.
+    pub fn record_consent_ex(&self, input_json: &str) -> Result<serde_json::Value, Error> {
+        let f = self.need(self.record_consent_ex)?;
+        let o = nul_free(input_json)?;
+        // SAFETY: as above.
+        unsafe { self.json(f(o.as_ptr()), "bad_config") }
     }
 
     pub fn version(&self) -> String {
@@ -278,6 +358,10 @@ pub fn version_at_least(v: &str, min: (u32, u32)) -> bool {
     let mut it = v.split('.').map(|p| p.trim().parse::<u32>().unwrap_or(0));
     let (major, minor) = (it.next().unwrap_or(0), it.next().unwrap_or(0));
     (major, minor) >= min
+}
+
+fn nul_free(s: &str) -> Result<CString, Error> {
+    CString::new(s).map_err(|_| Error::new("bad_config", "the JSON contains a NUL byte"))
 }
 
 unsafe fn cstr(p: *const c_char) -> String {

@@ -1,7 +1,7 @@
 "$schema" = "schemas/schema.json"
 
 [default]
-description = "Lets the app's pages start, watch, pause, mask and stop a GaiaDesk support session, check what the build supports and the macOS Screen Recording permission, rate a session, send diagnostics the customer agreed to, and listen for and decline session requests."
+description = "Lets the app's pages start, watch, pause, mask and stop a GaiaDesk support session, check what the build supports and the macOS Screen Recording permission, rate a session, send diagnostics the customer agreed to, and listen for and decline session requests, and run the consent step (the dialog, its preview, a receipt for an embedded answer, who is waiting)."
 permissions = [
   "allow-start-help",
   "allow-stop",
@@ -19,4 +19,8 @@ permissions = [
   "allow-listen",
   "allow-stop-listening",
   "allow-decline-request",
+  "allow-consent",
+  "allow-preview",
+  "allow-record-consent",
+  "allow-wait-info",
 ]

@@ -1,6 +1,6 @@
 ## Default Permission
 
-Lets the app's pages start, watch, pause, mask and stop a GaiaDesk support session, check what the build supports and the macOS Screen Recording permission, rate a session, send diagnostics the customer agreed to, and listen for and decline session requests.
+Lets the app's pages start, watch, pause, mask and stop a GaiaDesk support session, check what the build supports and the macOS Screen Recording permission, rate a session, send diagnostics the customer agreed to, and listen for and decline session requests, and run the consent step (the dialog, its preview, a receipt for an embedded answer, who is waiting).
 
 #### This default permission set includes the following:
 
@@ -20,6 +20,10 @@ Lets the app's pages start, watch, pause, mask and stop a GaiaDesk support sessi
 - `allow-listen`
 - `allow-stop-listening`
 - `allow-decline-request`
+- `allow-consent`
+- `allow-preview`
+- `allow-record-consent`
+- `allow-wait-info`
 
 ## Permission Table
 
@@ -52,6 +56,32 @@ Enables the attach_diagnostics command without any pre-configured scope.
 <td>
 
 Denies the attach_diagnostics command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`gaiadesk-support:allow-consent`
+
+</td>
+<td>
+
+Enables the consent command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`gaiadesk-support:deny-consent`
+
+</td>
+<td>
+
+Denies the consent command without any pre-configured scope.
 
 </td>
 </tr>
@@ -189,6 +219,32 @@ Denies the open_screen_permission_settings command without any pre-configured sc
 <tr>
 <td>
 
+`gaiadesk-support:allow-preview`
+
+</td>
+<td>
+
+Enables the preview command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`gaiadesk-support:deny-preview`
+
+</td>
+<td>
+
+Denies the preview command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `gaiadesk-support:allow-rate`
 
 </td>
@@ -208,6 +264,32 @@ Enables the rate command without any pre-configured scope.
 <td>
 
 Denies the rate command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`gaiadesk-support:allow-record-consent`
+
+</td>
+<td>
+
+Enables the record_consent command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`gaiadesk-support:deny-record-consent`
+
+</td>
+<td>
+
+Denies the record_consent command without any pre-configured scope.
 
 </td>
 </tr>
@@ -442,6 +524,32 @@ Enables the stop_listening command without any pre-configured scope.
 <td>
 
 Denies the stop_listening command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`gaiadesk-support:allow-wait-info`
+
+</td>
+<td>
+
+Enables the wait_info command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`gaiadesk-support:deny-wait-info`
+
+</td>
+<td>
+
+Denies the wait_info command without any pre-configured scope.
 
 </td>
 </tr>

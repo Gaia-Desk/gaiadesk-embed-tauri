@@ -15,7 +15,9 @@ use crate::ffi::{GdEmbedCallbacks, GdRect, Lib};
 use crate::followup::{warn, Creds};
 use crate::http::Created;
 use crate::options::{self, Brand, CssRect, HelpOptions, Native};
-use crate::{branding, http, indicator, keys, lock, permission, requests, Handle, Session, Support};
+use crate::{
+    branding, http, indicator, keys, lock, permission, requests, Handle, Session, Support,
+};
 
 /// Ask, create the session if needed, start. Resolves once sharing has
 /// started (events follow); rejects with `{code, message}`.
@@ -81,13 +83,32 @@ fn start_claimed<R: Runtime>(
     let masks = library_rects(window, &o.masks);
     // The calling window (the dialog attaches to it, the indicator keeps
     // clear of it): only a library that knows the keys gets them.
-    let native = lib.supports_native().then(|| native_window(window)).flatten();
+    let native = lib
+        .supports_native()
+        .then(|| native_window(window))
+        .flatten();
     let native_lib = lib.supports_native();
 
-    if !o.consent_granted {
+    if (o.consent_token.is_some() || o.consent_receipt.is_some()) && !lib.supports_consent() {
+        return Err(Error::new(
+            "unsupported",
+            format!(
+                "consentToken / consentReceipt need libgaiadesk_embed 0.4.0 (this is {})",
+                lib.version()
+            ),
+        ));
+    }
+    if !o.consent_granted && o.consent_token.is_none() && o.consent_receipt.is_none() {
         let mut ex = options::consent_options(o, &brand);
         if native_lib {
-            ex = options::with_native(&ex, &Native { parent_window: native, masked: Some(o.masking), ..Native::default() });
+            ex = options::with_native(
+                &ex,
+                &Native {
+                    parent_window: native,
+                    masked: Some(o.masking),
+                    ..Native::default()
+                },
+            );
         }
         let (company, capture, guided) = (brand.company.clone(), o.capture.as_str(), o.guided);
         let (tx, rx) = std::sync::mpsc::channel();
@@ -207,7 +228,11 @@ pub(crate) fn company_of<R: Runtime>(app: &AppHandle<R>) -> String {
         .unwrap_or_else(|| app.package_info().name.clone())
 }
 
-fn brand_of<R: Runtime>(app: &AppHandle<R>, sup: &Support, o: &HelpOptions) -> Result<Brand> {
+pub(crate) fn brand_of<R: Runtime>(
+    app: &AppHandle<R>,
+    sup: &Support,
+    o: &HelpOptions,
+) -> Result<Brand> {
     let base = sup.config.branding.clone().unwrap_or_default();
     let js = o.branding.clone().unwrap_or_default();
     let company = js.name.unwrap_or_else(|| company_of(app));
@@ -233,7 +258,7 @@ fn brand_of<R: Runtime>(app: &AppHandle<R>, sup: &Support, o: &HelpOptions) -> R
 }
 
 /// The calling window's native handle: `NSWindow*` on macOS, `HWND` on Windows.
-fn native_window<R: Runtime>(w: &WebviewWindow<R>) -> Option<u64> {
+pub(crate) fn native_window<R: Runtime>(w: &WebviewWindow<R>) -> Option<u64> {
     #[cfg(target_os = "macos")]
     return w.ns_window().ok().map(|p| p as usize as u64);
     #[cfg(windows)]
@@ -246,7 +271,7 @@ fn native_window<R: Runtime>(w: &WebviewWindow<R>) -> Option<u64> {
 }
 
 /// CSS-pixel rects of the calling page → the library's units.
-fn library_rects<R: Runtime>(w: &WebviewWindow<R>, rects: &[CssRect]) -> Vec<GdRect> {
+pub(crate) fn library_rects<R: Runtime>(w: &WebviewWindow<R>, rects: &[CssRect]) -> Vec<GdRect> {
     let scale = w.scale_factor().unwrap_or(1.0);
     let offset = match (w.inner_position(), w.outer_position()) {
         (Ok(i), Ok(o)) => ((i.x - o.x) as f64, (i.y - o.y) as f64),

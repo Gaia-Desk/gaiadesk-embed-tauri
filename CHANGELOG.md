@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.5.0
+
+For `libgaiadesk_embed` 0.4.0 (the fetch helper fetches it; its pinned hashes are filled in when the
+gaiadesk-embed-cpp v0.4.0 archives are published).
+
+- The consent step (GD-31): `consent(options)` (the library's dialog: live preview, your customer's
+  choices, who is waiting, localized, themed, timeout) and `consentBridge` /
+  `createConsentBridge({ embedToken, sessionId })` for the `@gaiadesk/consent` web component in your
+  page; both give a decision with a library-made receipt. Also `preview`, `recordConsent`,
+  `waitInfo`, and the `ConsentOptions`, `Decision`, `ConsentReceipt`, `Choices` types (Rust:
+  `ConsentOptions`).
+- `startHelp` takes `consentToken` and `consentReceipt` (the dialog is skipped; `capture` and
+  `guided` follow your customer's choices).
+- Events `consent_shown`, `consent_accepted`, `consent_declined`; `state` `waiting` (and `status()`)
+  carry `choices`; new `EndReason`s `customer_declined` and `consent_timeout`.
+- New commands in `gaiadesk-support:default`: `allow-consent`, `allow-preview`,
+  `allow-record-consent`, `allow-wait-info`.
+- With a library before 0.4.0 the consent step rejects with `unsupported`; everything else works as
+  in 0.4.1.
+
 ## 0.4.1
 
 The fetch helper downloads `libgaiadesk_embed` 0.3.1 (the same library as 0.3.0, rebuilt so the

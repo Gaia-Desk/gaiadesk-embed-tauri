@@ -9,6 +9,11 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { listen as listenEvent, type UnlistenFn } from '@tauri-apps/api/event';
+import { PLUGIN, SupportError, call } from './core.js';
+import type { Choices, ConsentReceipt } from './consent.js';
+
+export { SupportError } from './core.js';
+export * from './consent.js';
 
 /** What the support team may do (asked for when the plugin creates the session). */
 export type SupportMode = 'view' | 'cobrowse';
@@ -74,6 +79,17 @@ export interface HelpOptions {
    */
   consentGranted?: boolean;
   /**
+   * An accepted decision's `consent_token` from {@link consent} or `<gaiadesk-consent>` with
+   * {@link consentBridge} (the recommended way to ask): the dialog is skipped and the library checks
+   * it. Needs libgaiadesk_embed 0.4.0.
+   */
+  consentToken?: string;
+  /**
+   * That decision's `receipt`: sent with the join (stored on the session). `capture` and `guided`
+   * follow what your customer chose. Needs libgaiadesk_embed 0.4.0.
+   */
+  consentReceipt?: ConsentReceipt;
+  /**
    * Where the "Sharing with …" indicator starts. Default: top right of the screen, clear of your
    * window. Your customer can drag it; where they put it is remembered for your app.
    */
@@ -96,9 +112,18 @@ export type IndicatorPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bott
 export type State = 'idle' | 'consent' | 'starting' | 'waiting' | 'connected' | 'ended';
 /**
  * Why a session ended. `customer_cancelled`: Cancel on the indicator, or {@link stop}, while still
- * waiting (no agent had joined): the request left your team's queue at once.
+ * waiting (no agent had joined): the request left your team's queue at once. `customer_declined` /
+ * `consent_timeout`: the session's consent receipt said no, or the dialog timed out (the same).
  */
-export type EndReason = 'stopped' | 'app_stopped' | 'customer_cancelled' | 'disconnected' | 'expired' | 'error';
+export type EndReason =
+  | 'stopped'
+  | 'app_stopped'
+  | 'customer_cancelled'
+  | 'customer_declined'
+  | 'consent_timeout'
+  | 'disconnected'
+  | 'expired'
+  | 'error';
 
 export interface Status {
   state: State;
@@ -112,6 +137,8 @@ export interface Status {
   endReason: EndReason | null;
   /** Your team's typical wait for an agent, in seconds, when GaiaDesk has an estimate. */
   estimatedWaitSeconds: number | null;
+  /** What the session runs with (your customer's choices), once it is waiting. */
+  choices: Choices | null;
 }
 
 /** A session request: an agent asks your customer to share (see {@link listen}). */
@@ -138,7 +165,12 @@ export interface EventMap {
   error: { code: string; message: string };
   /** Always last, exactly once. `canRate`: {@link rate} may be called (within 24 hours). */
   ended: { reason: EndReason; canRate: boolean };
-  state: { state: Exclude<State, 'idle' | 'consent'> };
+  /** `waiting` carries what the session runs with (your customer's choices). */
+  state: { state: Exclude<State, 'idle' | 'consent'>; choices?: Choices };
+  /** The consent step's dialog ({@link consent}) is up. */
+  consent_shown: { locale: string; wording_version: string };
+  consent_accepted: { choices: Choices };
+  consent_declined: { reason: 'declined' | 'timeout' };
   /** Something went wrong that does not stop the session (`bad_logo`, `diagnostics_skipped`, an upload's refusal). */
   warning: { code: string; message: string };
   /** macOS Screen Recording is not allowed: `startHelp` refused before creating any session. */
@@ -167,17 +199,6 @@ export interface Attachment {
   created_at: number;
 }
 
-/** A refusal: `code` is `declined`, `busy`, `consent_required`, `bad_token`, `library_missing`, `secret_key_in_app`, `permission_required`, … */
-export class SupportError extends Error {
-  constructor(
-    readonly code: string,
-    message: string,
-  ) {
-    super(message);
-    this.name = 'SupportError';
-  }
-}
-
 export const DEFAULT_MASK_SELECTOR = '[data-gaiadesk-mask]';
 /**
  * Always masked, whatever selector you pass: password fields, card fields and one-time codes.
@@ -191,17 +212,6 @@ export const SECRET_MASK_SELECTOR = [
   '[autocomplete~="current-password"]',
   '[autocomplete~="new-password"]',
 ].join(', ');
-const PLUGIN = 'plugin:gaiadesk-support|';
-
-async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  try {
-    return await invoke<T>(PLUGIN + cmd, args);
-  } catch (e) {
-    const o = (e ?? {}) as { code?: unknown; message?: unknown };
-    throw new SupportError(typeof o.code === 'string' ? o.code : 'internal', typeof o.message === 'string' ? o.message : String(e));
-  }
-}
-
 /** Listen to a session event. Returns the function that stops listening. */
 export function on<K extends EventName>(name: K, fn: (detail: EventMap[K]) => void): Promise<UnlistenFn> {
   return listenEvent<EventMap[K]>(`gaiadesk-support:${name}`, (e) => fn(e.payload));

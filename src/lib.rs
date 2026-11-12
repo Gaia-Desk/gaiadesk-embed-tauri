@@ -24,6 +24,7 @@ use tauri::{Manager, RunEvent, Runtime};
 
 mod branding;
 mod commands;
+pub mod consent;
 pub mod error;
 mod events;
 pub mod ffi;
@@ -35,6 +36,7 @@ pub mod options;
 mod permission;
 mod requests;
 
+pub use consent::ConsentOptions;
 pub use error::Error;
 pub use events::Status;
 pub use options::{Branding, Capture, HelpOptions, IndicatorPosition, Mode};
@@ -113,7 +115,11 @@ impl Builder {
                 followup::discard_diagnostics,
                 requests::listen,
                 requests::stop_listening,
-                requests::decline_request
+                requests::decline_request,
+                consent::consent,
+                consent::preview,
+                consent::record_consent,
+                consent::wait_info
             ])
             .setup(move |app, api| {
                 let file = api.config().clone().unwrap_or_default();

@@ -102,3 +102,33 @@ fn branding_keys_are_sent_only_to_a_library_that_knows_them() {
         assert_eq!(l.start(&forced, NO_CB()).unwrap_err().code, "bad_config");
     }
 }
+
+#[test]
+fn the_consent_step_is_there_from_0_4_and_refuses_with_codes() {
+    let l = lib();
+    if !l.supports_consent() {
+        // An older library: the plugin answers `unsupported` without calling it.
+        assert_eq!(l.preview("{}").unwrap_err().code, "unsupported");
+        return;
+    }
+    assert_eq!(
+        l.record_consent_ex(r#"{"decision":"accepted"}"#)
+            .unwrap_err()
+            .code,
+        "bad_config"
+    );
+    let input = r#"{"decision":"declined","choices":{"guided":false,"share_logs":false,"capture":"window"},
+        "wording":{"title":"Share with Acme?"},"locale":"en","company":"Acme","capture":"window","app_version":null}"#;
+    let d = l.record_consent_ex(input).unwrap();
+    assert_eq!(d["decision"], "declined");
+    assert_eq!(d["receipt"]["surface"], "embedded");
+    assert!(d.get("consent_token").is_none());
+    // SAFETY: no callback, so no user data.
+    let bad = unsafe { l.consent(r#"{"nope":1}"#, None, ptr::null_mut()) };
+    assert_eq!(bad.unwrap_err().code, "bad_config");
+    if cfg!(target_os = "macos") {
+        // Test threads are never the main thread.
+        let off = unsafe { l.consent("{}", None, ptr::null_mut()) };
+        assert_eq!(off.unwrap_err().code, "wrong_thread");
+    }
+}

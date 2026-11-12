@@ -69,6 +69,18 @@ pub fn post_json(url: &str, bearer: &str, origin: Option<&str>, body: &str) -> R
     answer(status, &text)
 }
 
+/// `GET` JSON with a bearer token.
+pub fn get_json(url: &str, bearer: &str) -> Result<Value> {
+    let mut r = short()
+        .get(url)
+        .header("Authorization", format!("Bearer {bearer}"))
+        .call()
+        .map_err(|e| Error::new("network", format!("could not reach GaiaDesk: {e}")))?;
+    let status = r.status().as_u16();
+    let text = r.body_mut().read_to_string().unwrap_or_default();
+    answer(status, &text)
+}
+
 /// `POST` a file's bytes (`X-Filename` names it), with a bearer token.
 pub fn post_file(url: &str, bearer: &str, filename: &str, body: &[u8]) -> Result<Value> {
     let mut r = agent(Some(Duration::from_secs(300)), None)

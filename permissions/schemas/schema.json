@@ -307,6 +307,18 @@
           "markdownDescription": "Denies the attach_diagnostics command without any pre-configured scope."
         },
         {
+          "description": "Enables the consent command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-consent",
+          "markdownDescription": "Enables the consent command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the consent command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-consent",
+          "markdownDescription": "Denies the consent command without any pre-configured scope."
+        },
+        {
           "description": "Enables the decline_request command without any pre-configured scope.",
           "type": "string",
           "const": "allow-decline-request",
@@ -367,6 +379,18 @@
           "markdownDescription": "Denies the open_screen_permission_settings command without any pre-configured scope."
         },
         {
+          "description": "Enables the preview command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-preview",
+          "markdownDescription": "Enables the preview command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the preview command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-preview",
+          "markdownDescription": "Denies the preview command without any pre-configured scope."
+        },
+        {
           "description": "Enables the rate command without any pre-configured scope.",
           "type": "string",
           "const": "allow-rate",
@@ -377,6 +401,18 @@
           "type": "string",
           "const": "deny-rate",
           "markdownDescription": "Denies the rate command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the record_consent command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-record-consent",
+          "markdownDescription": "Enables the record_consent command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the record_consent command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-record-consent",
+          "markdownDescription": "Denies the record_consent command without any pre-configured scope."
         },
         {
           "description": "Enables the request_screen_permission command without any pre-configured scope.",
@@ -487,10 +523,22 @@
           "markdownDescription": "Denies the stop_listening command without any pre-configured scope."
         },
         {
-          "description": "Lets the app's pages start, watch, pause, mask and stop a GaiaDesk support session, check what the build supports and the macOS Screen Recording permission, rate a session, send diagnostics the customer agreed to, and listen for and decline session requests.\n#### This default permission set includes:\n\n- `allow-start-help`\n- `allow-stop`\n- `allow-set-paused`\n- `allow-set-masks`\n- `allow-status`\n- `allow-get-info`\n- `allow-screen-permission`\n- `allow-request-screen-permission`\n- `allow-open-screen-permission-settings`\n- `allow-rate`\n- `allow-attach-diagnostics`\n- `allow-send-diagnostics`\n- `allow-discard-diagnostics`\n- `allow-listen`\n- `allow-stop-listening`\n- `allow-decline-request`",
+          "description": "Enables the wait_info command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-wait-info",
+          "markdownDescription": "Enables the wait_info command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the wait_info command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-wait-info",
+          "markdownDescription": "Denies the wait_info command without any pre-configured scope."
+        },
+        {
+          "description": "Lets the app's pages start, watch, pause, mask and stop a GaiaDesk support session, check what the build supports and the macOS Screen Recording permission, rate a session, send diagnostics the customer agreed to, and listen for and decline session requests, and run the consent step (the dialog, its preview, a receipt for an embedded answer, who is waiting).\n#### This default permission set includes:\n\n- `allow-start-help`\n- `allow-stop`\n- `allow-set-paused`\n- `allow-set-masks`\n- `allow-status`\n- `allow-get-info`\n- `allow-screen-permission`\n- `allow-request-screen-permission`\n- `allow-open-screen-permission-settings`\n- `allow-rate`\n- `allow-attach-diagnostics`\n- `allow-send-diagnostics`\n- `allow-discard-diagnostics`\n- `allow-listen`\n- `allow-stop-listening`\n- `allow-decline-request`\n- `allow-consent`\n- `allow-preview`\n- `allow-record-consent`\n- `allow-wait-info`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Lets the app's pages start, watch, pause, mask and stop a GaiaDesk support session, check what the build supports and the macOS Screen Recording permission, rate a session, send diagnostics the customer agreed to, and listen for and decline session requests.\n#### This default permission set includes:\n\n- `allow-start-help`\n- `allow-stop`\n- `allow-set-paused`\n- `allow-set-masks`\n- `allow-status`\n- `allow-get-info`\n- `allow-screen-permission`\n- `allow-request-screen-permission`\n- `allow-open-screen-permission-settings`\n- `allow-rate`\n- `allow-attach-diagnostics`\n- `allow-send-diagnostics`\n- `allow-discard-diagnostics`\n- `allow-listen`\n- `allow-stop-listening`\n- `allow-decline-request`"
+          "markdownDescription": "Lets the app's pages start, watch, pause, mask and stop a GaiaDesk support session, check what the build supports and the macOS Screen Recording permission, rate a session, send diagnostics the customer agreed to, and listen for and decline session requests, and run the consent step (the dialog, its preview, a receipt for an embedded answer, who is waiting).\n#### This default permission set includes:\n\n- `allow-start-help`\n- `allow-stop`\n- `allow-set-paused`\n- `allow-set-masks`\n- `allow-status`\n- `allow-get-info`\n- `allow-screen-permission`\n- `allow-request-screen-permission`\n- `allow-open-screen-permission-settings`\n- `allow-rate`\n- `allow-attach-diagnostics`\n- `allow-send-diagnostics`\n- `allow-discard-diagnostics`\n- `allow-listen`\n- `allow-stop-listening`\n- `allow-decline-request`\n- `allow-consent`\n- `allow-preview`\n- `allow-record-consent`\n- `allow-wait-info`"
         }
       ]
     }

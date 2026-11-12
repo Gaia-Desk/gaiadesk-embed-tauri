@@ -25,6 +25,9 @@ pub struct Status {
     /// The company's typical wait for an agent, seconds, when the server has
     /// an estimate (from the session's create or accept).
     pub estimated_wait_seconds: Option<u64>,
+    /// What the session runs with (the consent step's choices), from the
+    /// `waiting` state: `{guided, share_logs, capture}`.
+    pub choices: Option<Value>,
 }
 
 impl Status {
@@ -54,7 +57,12 @@ pub fn map(json: &str, status: &mut Status) -> Option<(&'static str, Value)> {
             if st != "ended" {
                 status.state = st.clone();
             }
-            Some(("state", json!({ "state": st })))
+            let mut p = json!({ "state": st });
+            if let Some(c) = e.get("choices").filter(|c| c.is_object()) {
+                status.choices = Some(c.clone());
+                p["choices"] = c.clone();
+            }
+            Some(("state", p))
         }
         "code" => {
             status.code = s("code");
@@ -96,8 +104,17 @@ pub fn map(json: &str, status: &mut Status) -> Option<(&'static str, Value)> {
         "ended" => {
             let reason = s("reason")
                 .filter(|r| {
-                    ["stopped", "app_stopped", "customer_cancelled", "disconnected", "expired", "error"]
-                        .contains(&r.as_str())
+                    [
+                        "stopped",
+                        "app_stopped",
+                        "customer_cancelled",
+                        "customer_declined",
+                        "consent_timeout",
+                        "disconnected",
+                        "expired",
+                        "error",
+                    ]
+                    .contains(&r.as_str())
                 })
                 .unwrap_or_else(|| "error".into());
             status.state = "ended".into();
@@ -208,8 +225,28 @@ mod tests {
             r#"{"type":"indicator_moved","x":120.5,"y":-30}"#,
             r#"{"type":"ended","reason":"customer_cancelled"}"#,
         ]);
-        assert_eq!(out[1], ("indicator_moved", json!({ "x": 120.5, "y": -30.0 })));
+        assert_eq!(
+            out[1],
+            ("indicator_moved", json!({ "x": 120.5, "y": -30.0 }))
+        );
         assert_eq!(out[2], ("ended", json!({ "reason": "customer_cancelled" })));
         assert_eq!(st.end_reason.as_deref(), Some("customer_cancelled"));
+    }
+
+    #[test]
+    fn waiting_carries_the_choices_and_a_declined_consent_ends_with_its_reason() {
+        let (out, st) = run(&[
+            r#"{"type":"state","state":"waiting","choices":{"guided":false,"share_logs":true,"capture":"window"}}"#,
+            r#"{"type":"ended","reason":"customer_declined"}"#,
+        ]);
+        let choices = json!({ "guided": false, "share_logs": true, "capture": "window" });
+        assert_eq!(
+            out[0],
+            ("state", json!({ "state": "waiting", "choices": choices }))
+        );
+        assert_eq!(st.choices, Some(choices));
+        assert_eq!(out[1].1, json!({ "reason": "customer_declined" }));
+        let (out, _) = run(&[r#"{"type":"ended","reason":"consent_timeout"}"#]);
+        assert_eq!(out[0].1, json!({ "reason": "consent_timeout" }));
     }
 }
