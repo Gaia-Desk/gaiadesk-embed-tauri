@@ -277,3 +277,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "http_live.rs"]
+mod live;
