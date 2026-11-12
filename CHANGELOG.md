@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.0 (unreleased)
+
+For `libgaiadesk_embed` 0.3.0 (the fetch helper's pins move to it when it is released; with 0.2.0
+the new keys are not sent and everything else works as in 0.3.0).
+
+- The consent dialog is attached to the calling window: the plugin passes the Tauri window's
+  `NSWindow` / `HWND` (`parent_window`), so it is a sheet on it (macOS) or owned by it (Windows),
+  in front and focused, never behind (seen with remote-URL webviews).
+- A modern dialog: larger logo, light and dark with the system, and a checklist of exactly what is
+  shared (this window or the screen, guided or view only, masking on, how to stop).
+- Cancel while waiting: the indicator offers Cancel until an agent joins; it (or `stop()`) ends the
+  session at once as `customer_cancelled` (new `EndReason`), gone from the console's queue, and no
+  agent can join it.
+- The indicator: always on top, draggable, its place remembered per app
+  (`<app data dir>/gaiadesk-support/indicator.json`), clear of your window by default, and the new
+  `indicatorPosition` option.
+- README: "Your own consent dialog", the minimum wording for `consentGranted: true`.
+
 ## 0.3.0
 
 Still fetches `libgaiadesk_embed` 0.2.0 (no library change).
