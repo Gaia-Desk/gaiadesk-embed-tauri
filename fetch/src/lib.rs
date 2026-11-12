@@ -40,22 +40,19 @@ use sha2::{Digest, Sha256};
 pub const VERSION: &str = "0.4.0";
 
 // BEGIN PINNED HASHES (the same as gaiadesk-embed-cpp's cmake/FetchGaiaDeskEmbed.cmake)
-// TODO(0.4.0 release): placeholders until gaiadesk-embed-cpp v0.4.0 is published. Copy its three
-// hashes here and into `pins_match_the_cpp_repository`; until then
-// `every_supported_target_has_a_pinned_hash` fails on purpose (and any download is refused).
 /// `(archive, sha256)` for every published archive of [`VERSION`].
 pub const PINNED: &[(&str, &str)] = &[
     (
         "gaiadesk_embed-macos-universal.tar.gz",
-        "0000000000000000000000000000000000000000000000000000000000000000",
+        "3bc12304496cd38f95410554641b1b75d0a665f2ab719cc051ef7ed0ca9b00a0",
     ),
     (
         "gaiadesk_embed-linux-x64.tar.gz",
-        "0000000000000000000000000000000000000000000000000000000000000000",
+        "b97447aea4dab07e92cf2ebabb0b0b776d775e9f0747519ad6541b3e437b5127",
     ),
     (
         "gaiadesk_embed-win-x64.zip",
-        "0000000000000000000000000000000000000000000000000000000000000000",
+        "493e57648321a07ee980fc1c0df0982f35df1770824ac890249d06a7377de504",
     ),
 ];
 // END PINNED HASHES
@@ -266,10 +263,10 @@ mod tests {
 
     #[test]
     fn pins_match_the_cpp_repository() {
-        // TODO(0.4.0 release): the hash gaiadesk-embed-cpp's FetchGaiaDeskEmbed.cmake pins for 0.4.0.
+        // The hashes gaiadesk-embed-cpp's FetchGaiaDeskEmbed.cmake pins for 0.4.0.
         assert_eq!(
             pinned_sha256("gaiadesk_embed-macos-universal.tar.gz"),
-            Some("TODO: gaiadesk-embed-cpp v0.4.0's macOS archive hash")
+            Some("3bc12304496cd38f95410554641b1b75d0a665f2ab719cc051ef7ed0ca9b00a0")
         );
         assert_eq!(VERSION, "0.4.0");
     }
