@@ -29,6 +29,8 @@
     "@tauri-apps/api": "^2.0.0"
   },
   "devDependencies": {
+    "@gaiadesk/consent": "^0.1.0",
+    "happy-dom": "^21.0.4",
     "linkedom": "^0.18.15",
     "typescript": "^5.6.0"
   },
@@ -43,5 +45,14 @@
   "publishConfig": {
     "access": "public"
   },
-  "keywords": ["gaiadesk", "tauri", "tauri-plugin", "support", "remote-support", "screen-share", "cobrowse", "help-desk"]
+  "keywords": [
+    "gaiadesk",
+    "tauri",
+    "tauri-plugin",
+    "support",
+    "remote-support",
+    "screen-share",
+    "cobrowse",
+    "help-desk"
+  ]
 }

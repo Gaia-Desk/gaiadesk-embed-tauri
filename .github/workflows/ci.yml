@@ -35,7 +35,8 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Check (plugin, fetch helper, example app)
         run: cargo check --workspace --all-targets
-      # Unit tests, plus the live tests against the real library (refusals only:
+      # Unit tests, plus the live tests against the real library (refusals, and the
+      # consent receipts posted to a local stand-in server: accept, decline, timeout;
       # no session, no network beyond the download).
       - name: Test
         run: cargo test --workspace
@@ -48,7 +49,7 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      - name: Build and test (masks, overlay, dialog, getInfo)
+      - name: Build and test (masks, overlay, dialog, getInfo; the consent step end to end with <gaiadesk-consent>)
         run: npm test
       - name: Package contents
         run: npm pack --dry-run
