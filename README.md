@@ -37,9 +37,9 @@ Not in a desktop app? See the [web SDK](https://gaiadesk.net/docs/web-in-app-sup
 ## Install
 
 ```sh
-cargo add tauri-plugin-gaiadesk-support@0.3                # in src-tauri/
-cargo add --build gaiadesk-embed-fetch@0.3                 # in src-tauri/: fetches the library at build time
-npm install @gaiadesk/tauri-plugin-support@0.3             # your frontend
+cargo add tauri-plugin-gaiadesk-support@0.4                # in src-tauri/
+cargo add --build gaiadesk-embed-fetch@0.4                 # in src-tauri/: fetches the library at build time
+npm install @gaiadesk/tauri-plugin-support@0.4             # your frontend
 ```
 
 ### Versions that go together
